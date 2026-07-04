@@ -7,6 +7,12 @@ import {
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
 
+// Control-plane secrets the PO can set/rotate (matches backend updateSecrets allow-list).
+const SECRET_KEYS = [
+  'dbUri', 'agoraAppId', 'agoraAppCertificate', 'payuKey', 'payuSalt',
+  'waBridgeAppKey', 'waBridgeAuthKey', 'waBridgeDeviceId', 'waBridgeOtpTemplateId', 'llmApiKey',
+];
+
 export default function TenantDetail() {
   const { slug } = useParams();
   const nav = useNavigate();
@@ -16,6 +22,7 @@ export default function TenantDetail() {
   const [planKey, setPlanKey] = useState('');
   const [status, setStatus] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
+  const [secretEdits, setSecretEdits] = useState({}); // key -> new plaintext value to save
 
   const load = useCallback(() => {
     Platform.getTenant(slug).then(({ data }) => setT(data.data)).catch(() => toast.error('Load failed'));
@@ -41,11 +48,28 @@ export default function TenantDetail() {
     try { await Platform.requestBuild(slug, { app, artifact }); toast.success(`Build queued: ${app} ${artifact.toUpperCase()}`); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
+  const deleteBuild = async (id) => {
+    try { await Platform.deleteBuild(id); load(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
+  const clearBuilds = async () => {
+    if (!confirm('Cancel/clear all pending (queued/running) builds for this tenant?')) return;
+    try { const { data } = await Platform.clearBuilds(slug); toast.success(`Cleared ${data.data.cleared} pending build(s)`); load(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
   const saveAdminPhone = async () => {
     if (!adminPhone.trim()) return;
     try { await Platform.setAdminPhone(slug, adminPhone.trim()); toast.success('Admin phone set — they can log into the admin console'); setAdminPhone(''); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
+  const saveSecrets = async () => {
+    const patch = Object.fromEntries(Object.entries(secretEdits).filter(([, v]) => v && v.trim()));
+    if (!Object.keys(patch).length) { toast('Enter at least one secret to update'); return; }
+    try { await Platform.updateSecrets(slug, patch); toast.success('Secrets updated'); setSecretEdits({}); load(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
+  // Disable build buttons for an app while a build is queued/running for it.
+  const pendingApps = new Set(builds.filter((b) => b.status === 'queued' || b.status === 'running').map((b) => b.app));
   const archive = async () => {
     if (!confirm(`Archive ${slug}? Its API will be blocked (data kept).`)) return;
     try { await Platform.archiveTenant(slug); toast.success('Archived'); nav('/tenants'); }
@@ -112,34 +136,48 @@ export default function TenantDetail() {
 
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2.5 }}>
-            <Typography variant="subtitle1" fontWeight={700}>Secrets (masked)</Typography>
-            <Divider sx={{ my: 1.5 }} />
-            <Table size="small">
-              <TableBody>
-                {Object.entries(t.secrets || {}).filter(([, v]) => v).map(([k, v]) => (
-                  <TableRow key={k}><TableCell>{k}</TableCell><TableCell><code>{v}</code></TableCell></TableRow>
-                ))}
-                {!Object.values(t.secrets || {}).some(Boolean) && (
-                  <TableRow><TableCell colSpan={2} sx={{ color: 'text.secondary' }}>No secrets set</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
+            <Typography variant="subtitle1" fontWeight={700}>Secrets (encrypted)</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Current values are masked. Type a new value to change one; leave blank to keep.
+            </Typography>
+            <Divider sx={{ mb: 1.5 }} />
+            <Stack spacing={1.25}>
+              {SECRET_KEYS.map((k) => (
+                <TextField
+                  key={k}
+                  size="small"
+                  label={k}
+                  placeholder={(t.secrets && t.secrets[k]) || 'not set'}
+                  value={secretEdits[k] || ''}
+                  onChange={(e) => setSecretEdits({ ...secretEdits, [k]: e.target.value })}
+                  fullWidth
+                />
+              ))}
+            </Stack>
+            <Button variant="outlined" sx={{ mt: 2 }} onClick={saveSecrets}>Save changed secrets</Button>
           </Paper>
         </Grid>
 
         <Grid item xs={12}>
           <Paper sx={{ p: 2.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
               <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1 }}>Android Builds</Typography>
               <Button size="small" onClick={load}>Refresh</Button>
+              <Button size="small" color="warning" onClick={clearBuilds}>Clear pending</Button>
             </Box>
             <Divider sx={{ mb: 1.5 }} />
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
-              <Button size="small" variant="contained" onClick={() => build('user', 'aab')}>User · AAB (Play)</Button>
-              <Button size="small" variant="outlined" onClick={() => build('user', 'apk')}>User · APK</Button>
-              <Button size="small" variant="contained" color="secondary" onClick={() => build('astrologer', 'aab')}>Astrologer · AAB</Button>
-              <Button size="small" variant="outlined" color="secondary" onClick={() => build('astrologer', 'apk')}>Astrologer · APK</Button>
+              {/* Buttons for an app are disabled while a build for it is queued/running. */}
+              <Button size="small" variant="contained" disabled={pendingApps.has('user')} onClick={() => build('user', 'aab')}>User · AAB (Play)</Button>
+              <Button size="small" variant="outlined" disabled={pendingApps.has('user')} onClick={() => build('user', 'apk')}>User · APK</Button>
+              <Button size="small" variant="contained" color="secondary" disabled={pendingApps.has('astrologer')} onClick={() => build('astrologer', 'aab')}>Astrologer · AAB</Button>
+              <Button size="small" variant="outlined" color="secondary" disabled={pendingApps.has('astrologer')} onClick={() => build('astrologer', 'apk')}>Astrologer · APK</Button>
             </Stack>
+            {pendingApps.size > 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                A build is in progress for: {[...pendingApps].join(', ')} — buttons re-enable when it finishes.
+              </Typography>
+            )}
             <Table size="small">
               <TableBody>
                 <TableRow>
@@ -148,6 +186,7 @@ export default function TenantDetail() {
                   <TableCell sx={{ fontWeight: 700 }}>Version</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Download</TableCell>
+                  <TableCell />
                 </TableRow>
                 {builds.map((bd) => (
                   <TableRow key={bd._id}>
@@ -163,10 +202,11 @@ export default function TenantDetail() {
                         ? <a href={bd.artifactUrl} target="_blank" rel="noreferrer">Download {(bd.artifact || '').toUpperCase()}</a>
                         : (bd.status === 'failed' ? '—' : 'building…')}
                     </TableCell>
+                    <TableCell><Button size="small" color="error" onClick={() => deleteBuild(bd._id)}>Delete</Button></TableCell>
                   </TableRow>
                 ))}
                 {!builds.length && (
-                  <TableRow><TableCell colSpan={5} sx={{ color: 'text.secondary' }}>No builds yet — queue one above.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} sx={{ color: 'text.secondary' }}>No builds yet — queue one above.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

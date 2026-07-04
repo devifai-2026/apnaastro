@@ -9,7 +9,10 @@ const COLOR = { queued: 'default', running: 'info', succeeded: 'success', failed
 
 export default function Builds() {
   const [builds, setBuilds] = useState([]);
-  const load = () => Platform.listBuilds().then(({ data }) => setBuilds(data.data)).catch(() => {});
+  // Defensive: always store an array so .map never throws even on an odd response.
+  const load = () => Platform.listBuilds()
+    .then(({ data }) => setBuilds(Array.isArray(data?.data) ? data.data : []))
+    .catch(() => setBuilds([]));
   useEffect(() => { load(); }, []);
 
   return (
