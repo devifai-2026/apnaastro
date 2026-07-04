@@ -30,6 +30,7 @@ export const Platform = {
   me: () => api.get('/me'),
   overview: () => api.get('/overview'),
   analytics: () => api.get('/analytics'),
+  vmMetrics: (hours) => api.get('/vm-metrics', { params: hours ? { hours } : {} }),
 
   listTenants: () => api.get('/tenants'),
   getTenant: (slug) => api.get(`/tenants/${slug}`),

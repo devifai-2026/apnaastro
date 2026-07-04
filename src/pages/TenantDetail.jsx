@@ -120,9 +120,12 @@ export default function TenantDetail() {
         <Divider sx={{ my: 2 }} />
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Admin login phone — this number can log into the admin console via OTP.
+          {t.adminPhone
+            ? <> Currently: <b>{t.adminPhone}</b>{t.adminPhones && t.adminPhones.length > 1 ? ` (+${t.adminPhones.length - 1} more)` : ''}.</>
+            : ' None set yet.'}
         </Typography>
         <Stack direction="row" spacing={1}>
-          <TextField size="small" label="Admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder="10-digit" sx={{ minWidth: 200 }} />
+          <TextField size="small" label="Admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder={t.adminPhone || '10-digit'} sx={{ minWidth: 200 }} />
           <Button variant="outlined" onClick={saveAdminPhone}>Set / Change</Button>
         </Stack>
       </Paper>
@@ -186,21 +189,34 @@ export default function TenantDetail() {
           <Paper sx={{ p: 2.5 }}>
             <Typography variant="subtitle1" fontWeight={700}>Secrets (encrypted)</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Current values are masked. Type a new value to change one; leave blank to keep.
+              Masked = already set in the DB. Type a new value to change one; leave blank to keep.
+              Agora, PayU &amp; VedicAstro also appear in the “Brand &amp; config” card above.
             </Typography>
             <Divider sx={{ mb: 1.5 }} />
             <Stack spacing={1.25}>
-              {SECRET_KEYS.map((k) => (
-                <TextField
-                  key={k}
-                  size="small"
-                  label={k}
-                  placeholder={(t.secrets && t.secrets[k]) || 'not set'}
-                  value={secretEdits[k] || ''}
-                  onChange={(e) => setSecretEdits({ ...secretEdits, [k]: e.target.value })}
-                  fullWidth
-                />
-              ))}
+              {SECRET_KEYS.map((k) => {
+                // A key counts as "set" if it's in control-plane secrets OR the
+                // tenant-DB config (Agora lives in config.agora, not secrets).
+                const current = (t.secrets && t.secrets[k])
+                  || (k === 'agoraAppId' && t.config?.agora?.appId)
+                  || (k === 'agoraAppCertificate' && t.config?.agora?.appCertificate)
+                  || (k === 'payuKey' && t.config?.payments?.payu?.key)
+                  || (k === 'payuSalt' && t.config?.payments?.payu?.salt)
+                  || '';
+                return (
+                  <TextField
+                    key={k}
+                    size="small"
+                    label={k}
+                    placeholder={current ? String(current) : 'not set'}
+                    helperText={current ? '✓ set' : 'not set'}
+                    FormHelperTextProps={{ sx: { color: current ? 'success.main' : 'text.disabled', m: 0 } }}
+                    value={secretEdits[k] || ''}
+                    onChange={(e) => setSecretEdits({ ...secretEdits, [k]: e.target.value })}
+                    fullWidth
+                  />
+                );
+              })}
             </Stack>
             <Button variant="outlined" sx={{ mt: 2 }} onClick={saveSecrets}>Save changed secrets</Button>
           </Paper>
