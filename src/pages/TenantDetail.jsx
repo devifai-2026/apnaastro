@@ -12,12 +12,14 @@ export default function TenantDetail() {
   const nav = useNavigate();
   const [t, setT] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [builds, setBuilds] = useState([]);
   const [planKey, setPlanKey] = useState('');
   const [status, setStatus] = useState('');
 
   const load = useCallback(() => {
     Platform.getTenant(slug).then(({ data }) => setT(data.data)).catch(() => toast.error('Load failed'));
     Platform.listPlans().then(({ data }) => setPlans(data.data)).catch(() => {});
+    Platform.listBuilds(slug).then(({ data }) => setBuilds(data.data)).catch(() => {});
   }, [slug]);
   useEffect(load, [load]);
 
@@ -34,8 +36,8 @@ export default function TenantDetail() {
     try { await Platform.setSubscription(slug, { status }); toast.success(`Status → ${status}`); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
-  const build = async (app) => {
-    try { await Platform.requestBuild(slug, { app, artifact: 'aab' }); toast.success(`Build queued: ${app}`); }
+  const build = async (app, artifact) => {
+    try { await Platform.requestBuild(slug, { app, artifact }); toast.success(`Build queued: ${app} ${artifact.toUpperCase()}`); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
   const archive = async () => {
@@ -50,6 +52,26 @@ export default function TenantDetail() {
         <Typography variant="h4" fontWeight={700} sx={{ flexGrow: 1 }}>{t.displayName} <Chip label={t.slug} size="small" /></Typography>
         <Chip label={t.status} color={t.status === 'active' ? 'success' : 'default'} />
       </Box>
+
+      {/* Tenant-facing URLs — landing page + admin console. */}
+      <Paper sx={{ p: 2.5, mb: 2 }}>
+        <Typography variant="subtitle1" fontWeight={700}>URLs</Typography>
+        <Divider sx={{ my: 1.5 }} />
+        <Stack spacing={1}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Typography sx={{ minWidth: 130, color: 'text.secondary' }}>Landing page</Typography>
+            {t.urls?.landing
+              ? <a href={t.urls.landing} target="_blank" rel="noreferrer">{t.urls.landing}</a>
+              : <Typography color="text.secondary">—</Typography>}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Typography sx={{ minWidth: 130, color: 'text.secondary' }}>Admin console</Typography>
+            {t.urls?.admin
+              ? <a href={t.urls.admin} target="_blank" rel="noreferrer">{t.urls.admin}</a>
+              : <Typography color="text.secondary">—</Typography>}
+          </Box>
+        </Stack>
+      </Paper>
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={6}>
@@ -91,18 +113,53 @@ export default function TenantDetail() {
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12}>
           <Paper sx={{ p: 2.5 }}>
-            <Typography variant="subtitle1" fontWeight={700}>Android Builds</Typography>
-            <Divider sx={{ my: 1.5 }} />
-            <Stack direction="row" spacing={1}>
-              <Button variant="contained" onClick={() => build('user')}>Build User App</Button>
-              <Button variant="contained" color="secondary" onClick={() => build('astrologer')}>Build Astrologer App</Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1 }}>Android Builds</Typography>
+              <Button size="small" onClick={load}>Refresh</Button>
+            </Box>
+            <Divider sx={{ mb: 1.5 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+              <Button size="small" variant="contained" onClick={() => build('user', 'aab')}>User · AAB (Play)</Button>
+              <Button size="small" variant="outlined" onClick={() => build('user', 'apk')}>User · APK</Button>
+              <Button size="small" variant="contained" color="secondary" onClick={() => build('astrologer', 'aab')}>Astrologer · AAB</Button>
+              <Button size="small" variant="outlined" color="secondary" onClick={() => build('astrologer', 'apk')}>Astrologer · APK</Button>
             </Stack>
+            <Table size="small">
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>App</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Version</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Download</TableCell>
+                </TableRow>
+                {builds.map((bd) => (
+                  <TableRow key={bd._id}>
+                    <TableCell>{bd.app}</TableCell>
+                    <TableCell>{(bd.artifact || '').toUpperCase()}</TableCell>
+                    <TableCell>{bd.versionName ? `${bd.versionName} (${bd.versionCode})` : '—'}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={bd.status}
+                        color={{ succeeded: 'success', failed: 'error', running: 'info', queued: 'default' }[bd.status] || 'default'} />
+                    </TableCell>
+                    <TableCell>
+                      {bd.artifactUrl
+                        ? <a href={bd.artifactUrl} target="_blank" rel="noreferrer">Download {(bd.artifact || '').toUpperCase()}</a>
+                        : (bd.status === 'failed' ? '—' : 'building…')}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!builds.length && (
+                  <TableRow><TableCell colSpan={5} sx={{ color: 'text.secondary' }}>No builds yet — queue one above.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12}>
           <Paper sx={{ p: 2.5 }}>
             <Typography variant="subtitle1" fontWeight={700} color="error">Danger</Typography>
             <Divider sx={{ my: 1.5 }} />
