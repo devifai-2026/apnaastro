@@ -29,12 +29,14 @@ export const Platform = {
   login: (email, password) => api.post('/login', { email, password }),
   me: () => api.get('/me'),
   overview: () => api.get('/overview'),
+  analytics: () => api.get('/analytics'),
 
   listTenants: () => api.get('/tenants'),
   getTenant: (slug) => api.get(`/tenants/${slug}`),
   createTenant: (body) => api.post('/tenants', body),
   updateTenant: (slug, body) => api.patch(`/tenants/${slug}`, body),
   updateSecrets: (slug, body) => api.put(`/tenants/${slug}/secrets`, body),
+  setAdminPhone: (slug, phone) => api.put(`/tenants/${slug}/admin-phone`, { phone }),
   archiveTenant: (slug) => api.delete(`/tenants/${slug}`),
 
   listPlans: () => api.get('/plans'),

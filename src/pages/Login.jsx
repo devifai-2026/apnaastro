@@ -7,8 +7,10 @@ import { useAuth } from '../AuthContext';
 export default function Login() {
   const { login, owner } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Prefilled owner credentials for convenience during setup. TODO: clear these
+  // defaults before opening the console to anyone but the platform owner.
+  const [email, setEmail] = useState('owner@apnaastro.in');
+  const [password, setPassword] = useState('ApnaAstro@2026');
   const [busy, setBusy] = useState(false);
 
   if (owner) { nav('/', { replace: true }); return null; }

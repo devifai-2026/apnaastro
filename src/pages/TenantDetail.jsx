@@ -40,6 +40,12 @@ export default function TenantDetail() {
     try { await Platform.requestBuild(slug, { app, artifact }); toast.success(`Build queued: ${app} ${artifact.toUpperCase()}`); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
+  const [adminPhone, setAdminPhone] = useState('');
+  const saveAdminPhone = async () => {
+    if (!adminPhone.trim()) return;
+    try { await Platform.setAdminPhone(slug, adminPhone.trim()); toast.success('Admin phone set — they can log into the admin console'); setAdminPhone(''); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
   const archive = async () => {
     if (!confirm(`Archive ${slug}? Its API will be blocked (data kept).`)) return;
     try { await Platform.archiveTenant(slug); toast.success('Archived'); nav('/tenants'); }
@@ -70,6 +76,14 @@ export default function TenantDetail() {
               ? <a href={t.urls.admin} target="_blank" rel="noreferrer">{t.urls.admin}</a>
               : <Typography color="text.secondary">—</Typography>}
           </Box>
+        </Stack>
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          Admin login phone — this number can log into the admin console via OTP.
+        </Typography>
+        <Stack direction="row" spacing={1}>
+          <TextField size="small" label="Admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder="10-digit" sx={{ minWidth: 200 }} />
+          <Button variant="outlined" onClick={saveAdminPhone}>Set / Change</Button>
         </Stack>
       </Paper>
 

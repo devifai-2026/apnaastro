@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, TextField, Button, Stack, Paper, Grid, Divider, Alert,
+  Box, Typography, TextField, Button, Stack, Paper, Grid, Divider, Alert, MenuItem,
 } from '@mui/material';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
@@ -14,12 +14,22 @@ export default function CreateTenant() {
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({
-    slug: '', displayName: '',
-    primaryColor: '#7c4dff', accentColor: '#ffb300', logoUrl: '', appIconUrl: '',
+    slug: '', displayName: '', adminPhone: '',
+    primaryColor: '#E0584A', accentColor: '#C98A5E', logoUrl: '', appIconUrl: '',
     userAppId: '', astroAppId: '',
-    dbUri: '', agoraAppId: '', agoraAppCertificate: '',
+    dbUri: '',
+    // Voice/video (Agora) — seeded into the tenant DB's AgoraConfig.
+    agoraAppId: '', agoraAppCertificate: '',
+    // Payments: all 3 gateways + which is active (tenant DB PaymentGatewayConfig).
+    activeGateway: 'payu',
     payuKey: '', payuSalt: '',
+    razorpayKeyId: '', razorpayKeySecret: '',
+    cashfreeAppId: '', cashfreeSecretKey: '',
+    // Astrology data provider.
+    vedicAstroKey: '',
+    // WhatsApp OTP + LLM (control-plane secrets).
     waBridgeAppKey: '', waBridgeAuthKey: '', waBridgeDeviceId: '', waBridgeOtpTemplateId: '',
+    llmApiKey: '',
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -30,6 +40,7 @@ export default function CreateTenant() {
       const body = {
         slug: f.slug.trim().toLowerCase(),
         displayName: f.displayName.trim(),
+        adminPhone: f.adminPhone.trim() || undefined,
         branding: {
           displayName: f.displayName.trim(),
           primaryColor: f.primaryColor, accentColor: f.accentColor,
@@ -37,13 +48,24 @@ export default function CreateTenant() {
         },
         androidUser: f.userAppId ? { applicationId: f.userAppId, label: f.displayName } : undefined,
         androidAstrologer: f.astroAppId ? { applicationId: f.astroAppId, label: `${f.displayName} Astrologer` } : undefined,
+        // Control-plane secrets (encrypted in TenantSecret).
         secrets: {
           dbUri: f.dbUri || undefined,
-          agoraAppId: f.agoraAppId || undefined,
-          agoraAppCertificate: f.agoraAppCertificate || undefined,
-          payuKey: f.payuKey || undefined, payuSalt: f.payuSalt || undefined,
           waBridgeAppKey: f.waBridgeAppKey || undefined, waBridgeAuthKey: f.waBridgeAuthKey || undefined,
           waBridgeDeviceId: f.waBridgeDeviceId || undefined, waBridgeOtpTemplateId: f.waBridgeOtpTemplateId || undefined,
+          llmApiKey: f.llmApiKey || undefined,
+        },
+        // Seeded into the TENANT DB config docs (payments, VedicAstro, Agora) —
+        // the source of truth the app + tenant admin read.
+        config: {
+          payments: {
+            active: f.activeGateway,
+            payu: (f.payuKey || f.payuSalt) ? { key: f.payuKey, salt: f.payuSalt, enabled: true } : undefined,
+            razorpay: (f.razorpayKeyId || f.razorpayKeySecret) ? { keyId: f.razorpayKeyId, keySecret: f.razorpayKeySecret, enabled: true } : undefined,
+            cashfree: (f.cashfreeAppId || f.cashfreeSecretKey) ? { appId: f.cashfreeAppId, secretKey: f.cashfreeSecretKey, enabled: true } : undefined,
+          },
+          vedicAstroKey: f.vedicAstroKey || undefined,
+          agora: (f.agoraAppId || f.agoraAppCertificate) ? { appId: f.agoraAppId, appCertificate: f.agoraAppCertificate } : undefined,
         },
       };
       const { data } = await Platform.createTenant(body);
@@ -72,6 +94,7 @@ export default function CreateTenant() {
         <Grid container spacing={2}>
           <Grid item xs={6}><TextField fullWidth required label="Slug (subdomain)" value={f.slug} onChange={set('slug')} helperText="a-z, 0-9, hyphen; 3–40 chars" /></Grid>
           <Grid item xs={6}><TextField fullWidth required label="Display name" value={f.displayName} onChange={set('displayName')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Admin phone" value={f.adminPhone} onChange={set('adminPhone')} placeholder="10-digit" helperText="First admin login for <slug>.admin.devifai.in (OTP)" /></Grid>
         </Grid>
       </Section>
 
@@ -91,20 +114,43 @@ export default function CreateTenant() {
         </Grid>
       </Section>
 
-      <Section title="Secrets (encrypted at rest)">
+      <Section title="Payments (all 3 gateways — pick the active one)">
+        <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <TextField select fullWidth label="Active gateway" value={f.activeGateway} onChange={set('activeGateway')}>
+              <MenuItem value="payu">PayU</MenuItem>
+              <MenuItem value="razorpay">Razorpay</MenuItem>
+              <MenuItem value="cashfree">Cashfree</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={6}><TextField fullWidth label="PayU Merchant Key" value={f.payuKey} onChange={set('payuKey')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="PayU Salt" value={f.payuSalt} onChange={set('payuSalt')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Razorpay Key ID" value={f.razorpayKeyId} onChange={set('razorpayKeyId')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Razorpay Key Secret" value={f.razorpayKeySecret} onChange={set('razorpayKeySecret')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Cashfree App ID" value={f.cashfreeAppId} onChange={set('cashfreeAppId')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Cashfree Secret Key" value={f.cashfreeSecretKey} onChange={set('cashfreeSecretKey')} /></Grid>
+        </Grid>
+      </Section>
+
+      <Section title="Astrology data + voice/video">
+        <Grid container spacing={2}>
+          <Grid item xs={12}><TextField fullWidth label="VedicAstro API key" value={f.vedicAstroKey} onChange={set('vedicAstroKey')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Agora App ID" value={f.agoraAppId} onChange={set('agoraAppId')} /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Agora App Certificate" value={f.agoraAppCertificate} onChange={set('agoraAppCertificate')} /></Grid>
+        </Grid>
+      </Section>
+
+      <Section title="Infra & messaging (encrypted)">
         <Alert severity="info" sx={{ mb: 2 }}>
-          Leave the Mongo URL blank to provision on the default cluster. Agora / PayU / WABridge are per-tenant.
+          Leave the Mongo URL blank to provision on the default cluster. Everything here is per-tenant and editable later in the tenant admin.
         </Alert>
         <Grid container spacing={2}>
           <Grid item xs={12}><TextField fullWidth label="Mongo connection URL (optional)" value={f.dbUri} onChange={set('dbUri')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Agora App ID" value={f.agoraAppId} onChange={set('agoraAppId')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Agora App Certificate" value={f.agoraAppCertificate} onChange={set('agoraAppCertificate')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="PayU Key" value={f.payuKey} onChange={set('payuKey')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="PayU Salt" value={f.payuSalt} onChange={set('payuSalt')} /></Grid>
           <Grid item xs={6}><TextField fullWidth label="WABridge App Key" value={f.waBridgeAppKey} onChange={set('waBridgeAppKey')} /></Grid>
           <Grid item xs={6}><TextField fullWidth label="WABridge Auth Key" value={f.waBridgeAuthKey} onChange={set('waBridgeAuthKey')} /></Grid>
           <Grid item xs={6}><TextField fullWidth label="WABridge Device ID" value={f.waBridgeDeviceId} onChange={set('waBridgeDeviceId')} /></Grid>
           <Grid item xs={6}><TextField fullWidth label="WABridge OTP Template ID" value={f.waBridgeOtpTemplateId} onChange={set('waBridgeOtpTemplateId')} /></Grid>
+          <Grid item xs={12}><TextField fullWidth label="LLM API key (optional)" value={f.llmApiKey} onChange={set('llmApiKey')} /></Grid>
         </Grid>
       </Section>
 
