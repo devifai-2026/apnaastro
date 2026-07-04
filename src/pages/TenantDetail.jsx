@@ -13,6 +13,22 @@ const SECRET_KEYS = [
   'waBridgeAppKey', 'waBridgeAuthKey', 'waBridgeDeviceId', 'waBridgeOtpTemplateId', 'llmApiKey',
 ];
 
+// ARGB '#AARRGGBB' (app token format) → CSS '#RRGGBB' for a swatch.
+function argbToCss(v) {
+  const s = String(v || '').replace('#', '');
+  return s.length === 8 ? `#${s.slice(2)}` : (v || '#000');
+}
+
+// Small label/value row (defined at module scope so it isn't re-created per render).
+function Row({ label, value }) {
+  return (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <Typography sx={{ minWidth: 150, color: 'text.secondary' }}>{label}</Typography>
+      <Typography sx={{ wordBreak: 'break-all' }}><code>{value}</code></Typography>
+    </Box>
+  );
+}
+
 export default function TenantDetail() {
   const { slug } = useParams();
   const nav = useNavigate();
@@ -110,6 +126,38 @@ export default function TenantDetail() {
           <Button variant="outlined" onClick={saveAdminPhone}>Set / Change</Button>
         </Stack>
       </Paper>
+
+      {/* Brand + tenant-DB config summary (theme colours, payments, VedicAstro, Agora). */}
+      {t.config && (
+        <Paper sx={{ p: 2.5, mb: 2 }}>
+          <Typography variant="subtitle1" fontWeight={700}>Brand & config</Typography>
+          <Divider sx={{ my: 1.5 }} />
+          <Stack spacing={1}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Typography sx={{ minWidth: 150, color: 'text.secondary' }}>Theme</Typography>
+              {t.config.theme?.enabled ? (
+                <>
+                  <Chip size="small" label="enabled" color="success" />
+                  {t.config.theme.primary && <Box sx={{ width: 20, height: 20, borderRadius: 1, border: '1px solid #333', background: argbToCss(t.config.theme.primary) }} title={`primary ${t.config.theme.primary}`} />}
+                  {t.config.theme.accent && <Box sx={{ width: 20, height: 20, borderRadius: 1, border: '1px solid #333', background: argbToCss(t.config.theme.accent) }} title={`accent ${t.config.theme.accent}`} />}
+                  <Typography variant="caption" color="text.secondary">{t.config.theme.primary} / {t.config.theme.accent}</Typography>
+                </>
+              ) : <Chip size="small" label="not set (using app default)" />}
+            </Box>
+            <Row label="App name" value={t.config.appName || '—'} />
+            <Row label="Logo" value={t.config.logoUrl || '—'} />
+            <Row label="Active gateway" value={t.config.payments?.active || '—'} />
+            <Row label="PayU" value={t.config.payments?.payu?.key || '—'} />
+            <Row label="Razorpay" value={t.config.payments?.razorpay?.keyId || '—'} />
+            <Row label="Cashfree" value={t.config.payments?.cashfree?.appId || '—'} />
+            <Row label="VedicAstro key" value={t.config.vedicAstro || '—'} />
+            <Row label="Agora App ID" value={t.config.agora?.appId || '—'} />
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+            These live in the tenant's own database (editable in the tenant admin). Masked values shown.
+          </Typography>
+        </Paper>
+      )}
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={6}>
