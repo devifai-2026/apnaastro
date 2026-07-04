@@ -9,6 +9,7 @@ import TenantDetail from './pages/TenantDetail';
 import CreateTenant from './pages/CreateTenant';
 import Plans from './pages/Plans';
 import Builds from './pages/Builds';
+import Leads from './pages/Leads';
 
 function RequireAuth({ children }) {
   const { owner, loading } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/tenants/:slug" element={<TenantDetail />} />
         <Route path="/plans" element={<Plans />} />
         <Route path="/builds" element={<Builds />} />
+        <Route path="/leads" element={<Leads />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

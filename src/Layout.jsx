@@ -7,6 +7,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import BusinessIcon from '@mui/icons-material/Business';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import AndroidIcon from '@mui/icons-material/Android';
+import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from './AuthContext';
 
@@ -14,6 +15,7 @@ const DRAWER = 232;
 const NAV = [
   { to: '/', label: 'Dashboard', icon: <DashboardIcon /> },
   { to: '/tenants', label: 'Tenants', icon: <BusinessIcon /> },
+  { to: '/leads', label: 'Leads', icon: <ContactPhoneIcon /> },
   { to: '/plans', label: 'Plans', icon: <PaymentsIcon /> },
   { to: '/builds', label: 'Builds', icon: <AndroidIcon /> },
 ];

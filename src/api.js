@@ -44,6 +44,9 @@ export const Platform = {
   upsertPlan: (body) => api.post('/plans', body),
   setSubscription: (slug, body) => api.put(`/tenants/${slug}/subscription`, body),
 
+  listLeads: (status) => api.get('/leads', { params: status ? { status } : {} }),
+  updateLead: (id, body) => api.patch(`/leads/${id}`, body),
+
   listBuilds: (slug) => api.get('/builds', { params: slug ? { slug } : {} }),
   requestBuild: (slug, body) => api.post(`/tenants/${slug}/builds`, body),
   buildAll: (body) => api.post('/builds/all', body),
