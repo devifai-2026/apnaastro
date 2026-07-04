@@ -15,6 +15,7 @@ export default function TenantDetail() {
   const [builds, setBuilds] = useState([]);
   const [planKey, setPlanKey] = useState('');
   const [status, setStatus] = useState('');
+  const [adminPhone, setAdminPhone] = useState('');
 
   const load = useCallback(() => {
     Platform.getTenant(slug).then(({ data }) => setT(data.data)).catch(() => toast.error('Load failed'));
@@ -40,7 +41,6 @@ export default function TenantDetail() {
     try { await Platform.requestBuild(slug, { app, artifact }); toast.success(`Build queued: ${app} ${artifact.toUpperCase()}`); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
-  const [adminPhone, setAdminPhone] = useState('');
   const saveAdminPhone = async () => {
     if (!adminPhone.trim()) return;
     try { await Platform.setAdminPhone(slug, adminPhone.trim()); toast.success('Admin phone set — they can log into the admin console'); setAdminPhone(''); }
