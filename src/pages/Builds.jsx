@@ -19,6 +19,7 @@ export default function Builds() {
   const [busy, setBusy] = useState(false);
   const [keystore, setKeystore] = useState(null);
   const [showPass, setShowPass] = useState(false);
+  const [filterTenant, setFilterTenant] = useState(''); // '' = all tenants
 
   const load = () => {
     Platform.listBuilds().then(({ data }) => setBuilds(Array.isArray(data?.data) ? data.data : [])).catch(() => setBuilds([]));
@@ -71,10 +72,18 @@ export default function Builds() {
     try { const { data } = await Platform.clearBuilds(); toast.success(`Cleared ${data.data.cleared}`); load(); } catch (e) { toast.error('Failed'); }
   };
 
+  // Tenants that actually have builds (for the filter), + the filtered rows.
+  const buildTenants = [...new Set(builds.map((b) => b.tenantSlug).filter(Boolean))].sort();
+  const visibleBuilds = filterTenant ? builds.filter((b) => b.tenantSlug === filterTenant) : builds;
+
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="h4" fontWeight={700} sx={{ flexGrow: 1 }}>Android Builds</Typography>
+        <TextField select size="small" label="Filter by tenant" value={filterTenant} onChange={(e) => setFilterTenant(e.target.value)} sx={{ minWidth: 190 }}>
+          <MenuItem value="">All tenants ({builds.length})</MenuItem>
+          {buildTenants.map((t) => <MenuItem key={t} value={t}>{t} ({builds.filter((b) => b.tenantSlug === t).length})</MenuItem>)}
+        </TextField>
         <Button startIcon={<RefreshIcon />} onClick={load}>Refresh</Button>
         <Button color="warning" onClick={clearPending}>Clear pending</Button>
       </Box>
@@ -143,7 +152,7 @@ export default function Builds() {
             <TableCell>Download</TableCell><TableCell />
           </TableRow></TableHead>
           <TableBody>
-            {builds.map((b) => (
+            {visibleBuilds.map((b) => (
               <TableRow key={b._id}>
                 <TableCell><b>{b.tenantSlug}</b></TableCell>
                 <TableCell>{b.app}</TableCell>
@@ -162,9 +171,9 @@ export default function Builds() {
                 <TableCell><Button size="small" color="error" onClick={() => del(b._id)}>Delete</Button></TableCell>
               </TableRow>
             ))}
-            {!builds.length && (
+            {!visibleBuilds.length && (
               <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                No builds yet — trigger one above.
+                {filterTenant ? `No builds for "${filterTenant}".` : 'No builds yet — trigger one above.'}
               </TableCell></TableRow>
             )}
           </TableBody>
