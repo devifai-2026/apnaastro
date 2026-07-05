@@ -39,6 +39,7 @@ export default function TenantDetail() {
   const [status, setStatus] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
   const [secretEdits, setSecretEdits] = useState({}); // key -> new plaintext value to save
+  const [delText, setDelText] = useState(''); // permanent-delete confirm (must be before any early return)
 
   const load = useCallback(() => {
     Platform.getTenant(slug).then(({ data }) => setT(data.data)).catch(() => toast.error('Load failed'));
@@ -95,7 +96,6 @@ export default function TenantDetail() {
     try { await Platform.reactivateTenant(slug); toast.success('Reactivated — logins work again'); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
-  const [delText, setDelText] = useState('');
   const permanentDelete = async () => {
     if (delText !== slug) { toast.error(`Type "${slug}" exactly to confirm`); return; }
     try { await Platform.deleteTenant(slug, delText); toast.success('Tenant permanently deleted'); nav('/tenants'); }
