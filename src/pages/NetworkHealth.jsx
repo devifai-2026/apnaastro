@@ -9,27 +9,18 @@ import {
 } from 'recharts';
 import { Platform, PLATFORM_BASE } from '../api';
 
-// Format a metric time-series [{t,v}] into recharts rows with a short time label.
-function toSeries(arr) {
-  return (arr || []).map((p) => ({
-    time: new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    v: p.v,
-  }));
-}
-
-// Health is derived from /healthz on the platform origin. PLATFORM_BASE ends in
-// /platform; strip it to hit the root health probe.
+// Live "Ready/Down" dot is derived from /healthz on the platform origin.
+// PLATFORM_BASE ends in /platform; strip it to hit the root health probe.
 const HEALTH_URL = `${PLATFORM_BASE.replace(/\/platform$/, '')}/healthz`;
-const POLL_MS = 5000;         // live health poll cadence
-const MAX_POINTS = 120;       // ~10 min of history at 5s
+const POLL_MS = 5000; // live status-dot poll cadence
 
 const fmtDay = (s) => { const [, m, d] = s.split('-'); return `${d}/${m}`; };
 
 export default function NetworkHealth() {
-  // ── Live backend health (rolling up/down timeline) ──
+  // ── Live "Ready/Down" dot + latest latency (the graphs come from the server
+  //    health-history below; this is just the at-a-glance current state). ──
   const [status, setStatus] = useState('checking'); // 'up' | 'down' | 'checking'
-  const [history, setHistory] = useState([]);        // [{ at, up, ms }]
-  const [uptimePct, setUptimePct] = useState(null);
+  const [lastMs, setLastMs] = useState(null);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -42,30 +33,33 @@ export default function NetworkHealth() {
         up = res.ok;
       } catch { up = false; }
       if (cancelled) return;
-      const ms = Math.round(performance.now() - t0);
-      const at = Date.now();
       setStatus(up ? 'up' : 'down');
-      setHistory((h) => {
-        const next = [...h, { at, up: up ? 1 : 0, ms: up ? ms : 0 }].slice(-MAX_POINTS);
-        const ups = next.filter((p) => p.up).length;
-        setUptimePct(next.length ? Math.round((ups / next.length) * 100) : null);
-        return next;
-      });
+      setLastMs(up ? Math.round(performance.now() - t0) : null);
     };
     ping();
     timer.current = setInterval(ping, POLL_MS);
     return () => { cancelled = true; clearInterval(timer.current); };
   }, []);
 
-  // ── VM CPU utilization (from Cloud Monitoring, last 3h) ──
-  const [vm, setVm] = useState(null);
+  // ── Backend health HISTORY (up/down + response time over time, from the
+  //    server-side health sampler). This is the persisted series behind the
+  //    graphs — not the flickering live number. ──
+  const [hh, setHh] = useState(null);
+  const [hhHours, setHhHours] = useState(3);
   useEffect(() => {
     let cancelled = false;
-    const load = () => Platform.vmMetrics(3).then(({ data }) => { if (!cancelled) setVm(data.data); }).catch(() => {});
+    const load = () => Platform.healthHistory(hhHours).then(({ data }) => { if (!cancelled) setHh(data.data); }).catch(() => {});
     load();
-    const iv = setInterval(load, 60000); // refresh CPU each minute
+    const iv = setInterval(load, 30000); // refresh the series every 30s
     return () => { cancelled = true; clearInterval(iv); };
-  }, []);
+  }, [hhHours]);
+
+  // Recharts rows for the two health charts.
+  const healthRows = (hh?.series || []).map((p) => ({
+    time: new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    up: p.up,          // 1 = Ready, 0 = Down
+    ms: p.ms,          // response time
+  }));
 
   // ── Network-fallback impact (how many users hit the DNS issue) ──
   const [days, setDays] = useState(7);
@@ -83,7 +77,6 @@ export default function NetworkHealth() {
   }, [days]);
 
   const statusColor = status === 'up' ? '#1C9963' : status === 'down' ? '#C0392B' : '#B0855B';
-  const lastMs = history.length ? history[history.length - 1].ms : null;
 
   return (
     <Box>
@@ -113,9 +106,9 @@ export default function NetworkHealth() {
         </Grid>
         <Grid item xs={12} md={4}>
           <Card><CardContent>
-            <Typography variant="overline" color="text.secondary">Uptime (this session)</Typography>
-            <Typography variant="h5" fontWeight={800} mt={1}>{uptimePct != null ? `${uptimePct}%` : '—'}</Typography>
-            <Typography variant="caption" color="text.secondary">{history.length} checks in the last ~10 min</Typography>
+            <Typography variant="overline" color="text.secondary">Uptime (last {hhHours}h)</Typography>
+            <Typography variant="h5" fontWeight={800} mt={1}>{hh?.uptimePct != null ? `${hh.uptimePct}%` : '—'}</Typography>
+            <Typography variant="caption" color="text.secondary">{hh?.samples || 0} health samples</Typography>
           </CardContent></Card>
         </Grid>
         <Grid item xs={12} md={4}>
@@ -129,36 +122,77 @@ export default function NetworkHealth() {
         </Grid>
       </Grid>
 
-      {/* ── CPU utilization (last 3h, from Cloud Monitoring) ── */}
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Typography variant="subtitle2" fontWeight={700} mb={1}>CPU utilization (%)</Typography>
-          {vm && vm.present?.cpu ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={toSeries(vm.cpu)}>
-                <defs>
-                  <linearGradient id="g-cpu" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7c4dff" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#7c4dff" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="time" stroke="#888" fontSize={11} minTickGap={28} />
-                <YAxis stroke="#888" fontSize={11} />
-                <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }} />
-                <Area type="monotone" dataKey="v" stroke="#7c4dff" strokeWidth={2} fill="url(#g-cpu)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <Box sx={{ height: 220, display: 'grid', placeItems: 'center' }}>
-              {vm ? <Typography variant="caption" color="text.secondary">CPU metrics unavailable</Typography> : <CircularProgress size={24} />}
-            </Box>
-          )}
-          {vm?.latest?.cpu != null && (
-            <Typography variant="caption" color="text.secondary">Now: {vm.latest.cpu}% · last 3h</Typography>
-          )}
-        </CardContent>
-      </Card>
+      {/* ── Service up/down + response time over time (health sampler series) ── */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+        <Typography variant="h6" fontWeight={800}>Service status over time</Typography>
+        <ToggleButtonGroup size="small" exclusive value={hhHours} onChange={(e, v) => v && setHhHours(v)}>
+          <ToggleButton value={3}>3h</ToggleButton>
+          <ToggleButton value={24}>24h</ToggleButton>
+          <ToggleButton value={168}>7d</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Grid container spacing={2} mb={2}>
+        {/* Up / Down */}
+        <Grid item xs={12} md={6}>
+          <Card><CardContent>
+            <Typography variant="subtitle2" fontWeight={700} mb={1}>Service up / down</Typography>
+            {healthRows.length ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={healthRows}>
+                  <defs>
+                    <linearGradient id="g-up" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#1C9963" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#1C9963" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                  <XAxis dataKey="time" stroke="#888" fontSize={11} minTickGap={28} />
+                  <YAxis stroke="#888" fontSize={11} domain={[0, 1]} ticks={[0, 1]}
+                    tickFormatter={(v) => (v === 1 ? 'Up' : 'Down')} width={44} />
+                  <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }}
+                    formatter={(v) => (v === 1 ? 'Ready' : 'Down')} />
+                  {/* step = the service holds a state between checks */}
+                  <Area type="stepAfter" dataKey="up" stroke="#1C9963" strokeWidth={2} fill="url(#g-up)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ height: 220, display: 'grid', placeItems: 'center' }}>
+                {hh ? <Typography variant="caption" color="text.secondary">Collecting samples… check back in a minute</Typography> : <CircularProgress size={24} />}
+              </Box>
+            )}
+          </CardContent></Card>
+        </Grid>
+        {/* Response time */}
+        <Grid item xs={12} md={6}>
+          <Card><CardContent>
+            <Typography variant="subtitle2" fontWeight={700} mb={1}>Response time (ms)</Typography>
+            {healthRows.length ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={healthRows}>
+                  <defs>
+                    <linearGradient id="g-ms" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#7c4dff" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#7c4dff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                  <XAxis dataKey="time" stroke="#888" fontSize={11} minTickGap={28} />
+                  <YAxis stroke="#888" fontSize={11} />
+                  <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }} formatter={(v) => `${v} ms`} />
+                  <Area type="monotone" dataKey="ms" stroke="#7c4dff" strokeWidth={2} fill="url(#g-ms)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ height: 220, display: 'grid', placeItems: 'center' }}>
+                {hh ? <Typography variant="caption" color="text.secondary">Collecting samples…</Typography> : <CircularProgress size={24} />}
+              </Box>
+            )}
+            {hh?.latest && (
+              <Typography variant="caption" color="text.secondary">Latest: {hh.latest.ms} ms · {hh.latest.up ? 'Ready' : 'Down'}</Typography>
+            )}
+          </CardContent></Card>
+        </Grid>
+      </Grid>
 
       {/* ── Fallback impact ── */}
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
