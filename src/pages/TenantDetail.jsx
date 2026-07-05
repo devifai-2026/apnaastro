@@ -86,9 +86,19 @@ export default function TenantDetail() {
   };
   // Disable build buttons for an app while a build is queued/running for it.
   const pendingApps = new Set(builds.filter((b) => b.status === 'queued' || b.status === 'running').map((b) => b.app));
-  const archive = async () => {
-    if (!confirm(`Archive ${slug}? Its API will be blocked (data kept).`)) return;
-    try { await Platform.archiveTenant(slug); toast.success('Archived'); nav('/tenants'); }
+  const suspend = async () => {
+    if (!confirm(`Suspend ${slug}? ALL logins (users, admins, astrologers) will be blocked immediately. Data is kept and you can reactivate anytime.`)) return;
+    try { await Platform.suspendTenant(slug); toast.success('Suspended — all logins blocked'); load(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
+  const reactivate = async () => {
+    try { await Platform.reactivateTenant(slug); toast.success('Reactivated — logins work again'); load(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
+  const [delText, setDelText] = useState('');
+  const permanentDelete = async () => {
+    if (delText !== slug) { toast.error(`Type "${slug}" exactly to confirm`); return; }
+    try { await Platform.deleteTenant(slug, delText); toast.success('Tenant permanently deleted'); nav('/tenants'); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
 
@@ -278,10 +288,41 @@ export default function TenantDetail() {
         </Grid>
 
         <Grid item xs={12}>
-          <Paper sx={{ p: 2.5 }}>
-            <Typography variant="subtitle1" fontWeight={700} color="error">Danger</Typography>
+          <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'error.main' }}>
+            <Typography variant="subtitle1" fontWeight={700} color="error">Danger zone</Typography>
             <Divider sx={{ my: 1.5 }} />
-            <Button variant="outlined" color="error" onClick={archive}>Archive Tenant</Button>
+
+            {/* Suspend / Reactivate — reversible, blocks ALL logins */}
+            <Box sx={{ mb: 2.5 }}>
+              <Typography variant="body2" fontWeight={600}>Suspend workspace</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Instantly blocks ALL logins (users, admins, astrologers). Data is kept; reversible.
+                {t.status === 'archived' && ' — currently SUSPENDED.'}
+                {t.status === 'deleted' && ' — permanently DELETED.'}
+              </Typography>
+              {t.status === 'archived'
+                ? <Button variant="contained" color="success" onClick={reactivate}>Reactivate workspace</Button>
+                : <Button variant="outlined" color="warning" onClick={suspend} disabled={t.status === 'deleted'}>Suspend workspace</Button>}
+            </Box>
+
+            <Divider sx={{ my: 1.5 }} />
+
+            {/* Permanent delete — irreversible, type-slug confirm */}
+            <Box>
+              <Typography variant="body2" fontWeight={600} color="error">Delete permanently</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                Irreversible. Blocks all logins forever and the tenant can never be reactivated.
+                Type <b>{slug}</b> to confirm.
+              </Typography>
+              {t.status === 'deleted'
+                ? <Chip color="error" label="Permanently deleted" />
+                : (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField size="small" placeholder={slug} value={delText} onChange={(e) => setDelText(e.target.value)} sx={{ maxWidth: 220 }} />
+                    <Button variant="contained" color="error" disabled={delText !== slug} onClick={permanentDelete}>Delete permanently</Button>
+                  </Stack>
+                )}
+            </Box>
           </Paper>
         </Grid>
       </Grid>

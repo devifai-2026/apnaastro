@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
+import ImageUpload from '../components/ImageUpload';
 
 // The single "create tenant" form: identity + branding (seeded into the tenant's
 // AppConfig, so both apps get the tenant's theme/logo/splash on first launch) +
@@ -102,8 +103,16 @@ export default function CreateTenant() {
         <Grid container spacing={2}>
           <Grid item xs={6}><TextField fullWidth label="Primary color" type="color" value={f.primaryColor} onChange={set('primaryColor')} /></Grid>
           <Grid item xs={6}><TextField fullWidth label="Accent color" type="color" value={f.accentColor} onChange={set('accentColor')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Logo URL" value={f.logoUrl} onChange={set('logoUrl')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="App icon URL (1024px)" value={f.appIconUrl} onChange={set('appIconUrl')} /></Grid>
+          <Grid item xs={6}>
+            <ImageUpload label="App logo" kind="logo" slug={f.slug || 'new'} value={f.logoUrl}
+              hint="Shown in-app & on the login screen (PNG/SVG-raster)."
+              onChange={(url) => setF((s) => ({ ...s, logoUrl: url }))} />
+          </Grid>
+          <Grid item xs={6}>
+            <ImageUpload label="App icon (1024×1024)" kind="icon" slug={f.slug || 'new'} value={f.appIconUrl}
+              hint="Home-screen launcher icon + splash. Square, 1024px."
+              onChange={(url) => setF((s) => ({ ...s, appIconUrl: url }))} />
+          </Grid>
         </Grid>
       </Section>
 

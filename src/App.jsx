@@ -10,6 +10,7 @@ import CreateTenant from './pages/CreateTenant';
 import Plans from './pages/Plans';
 import Builds from './pages/Builds';
 import Leads from './pages/Leads';
+import Billing from './pages/Billing';
 
 function RequireAuth({ children }) {
   const { owner, loading } = useAuth();
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/plans" element={<Plans />} />
         <Route path="/builds" element={<Builds />} />
         <Route path="/leads" element={<Leads />} />
+        <Route path="/billing" element={<Billing />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

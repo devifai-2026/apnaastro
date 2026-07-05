@@ -35,14 +35,26 @@ export const Platform = {
   listTenants: () => api.get('/tenants'),
   getTenant: (slug) => api.get(`/tenants/${slug}`),
   createTenant: (body) => api.post('/tenants', body),
+  uploadBranding: (file, kind, slug) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    fd.append('kind', kind);
+    if (slug) fd.append('slug', slug);
+    return api.post('/branding-upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
   updateTenant: (slug, body) => api.patch(`/tenants/${slug}`, body),
   updateSecrets: (slug, body) => api.put(`/tenants/${slug}/secrets`, body),
   setAdminPhone: (slug, phone) => api.put(`/tenants/${slug}/admin-phone`, { phone }),
   archiveTenant: (slug) => api.delete(`/tenants/${slug}`),
+  suspendTenant: (slug) => api.post(`/tenants/${slug}/suspend`),
+  reactivateTenant: (slug) => api.post(`/tenants/${slug}/reactivate`),
+  deleteTenant: (slug, confirm) => api.post(`/tenants/${slug}/delete`, { confirm }),
 
   listPlans: () => api.get('/plans'),
   upsertPlan: (body) => api.post('/plans', body),
+  billing: () => api.get('/billing'),
   setSubscription: (slug, body) => api.put(`/tenants/${slug}/subscription`, body),
+  recordPayment: (slug, body) => api.post(`/tenants/${slug}/payment`, body),
 
   listLeads: (status) => api.get('/leads', { params: status ? { status } : {} }),
   updateLead: (id, body) => api.patch(`/leads/${id}`, body),
