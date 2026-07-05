@@ -29,7 +29,7 @@ export default function CreateTenant() {
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({
     slug: '', displayName: '', adminPhone: '',
-    primaryColor: '#E0584A', accentColor: '#C98A5E', logoUrl: '', appIconUrl: '',
+    primaryColor: '#E0584A', accentColor: '#C98A5E', logoUrl: '', appIconUrl: '', tagline: '',
     userAppId: '', astroAppId: '',
     dbUri: '',
     // Voice/video (Agora) — seeded into the tenant DB's AgoraConfig.
@@ -60,6 +60,7 @@ export default function CreateTenant() {
         adminPhone: f.adminPhone.trim() || undefined,
         branding: {
           displayName: f.displayName.trim(),
+          tagline: f.tagline.trim() || undefined,
           primaryColor: f.primaryColor, accentColor: f.accentColor,
           logoUrl: f.logoUrl || undefined, appIconUrl: f.appIconUrl || undefined,
         },
@@ -109,6 +110,7 @@ export default function CreateTenant() {
 
       <Section title="Branding (seeded into both apps' theme & splash)">
         <Grid container spacing={2}>
+          <Grid item xs={12}><TextField fullWidth label="Tagline" value={f.tagline} onChange={set('tagline')} helperText="One-line brand tagline (e.g. “Astrology & wellness”). Auto-translated into all app languages. The app NAME stays the same in every language." /></Grid>
           <Grid item xs={6}><TextField fullWidth label="Primary color" type="color" value={f.primaryColor} onChange={set('primaryColor')} /></Grid>
           <Grid item xs={6}><TextField fullWidth label="Accent color" type="color" value={f.accentColor} onChange={set('accentColor')} /></Grid>
           <Grid item xs={6}>
