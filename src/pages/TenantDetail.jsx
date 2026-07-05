@@ -2,8 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Grid, Chip, Button, Stack, Divider, MenuItem,
-  TextField, Table, TableBody, TableRow, TableCell,
+  TextField, Table, TableBody, TableRow, TableCell, IconButton, InputAdornment, Tooltip,
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
 
@@ -12,6 +13,17 @@ const SECRET_KEYS = [
   'dbUri', 'agoraAppId', 'agoraAppCertificate', 'payuKey', 'payuSalt',
   'waBridgeAppKey', 'waBridgeAuthKey', 'waBridgeDeviceId', 'waBridgeOtpTemplateId', 'llmApiKey',
 ];
+
+// The current stored value for a secret key. Control-plane secrets live in
+// t.secrets; Agora/PayU are seeded into the tenant-DB config, so read those too.
+function currentSecret(t, k) {
+  return (t.secrets && t.secrets[k])
+    || (k === 'agoraAppId' && t.config?.agora?.appId)
+    || (k === 'agoraAppCertificate' && t.config?.agora?.appCertificate)
+    || (k === 'payuKey' && t.config?.payments?.payu?.key)
+    || (k === 'payuSalt' && t.config?.payments?.payu?.salt)
+    || '';
+}
 
 // ARGB '#AARRGGBB' (app token format) → CSS '#RRGGBB' for a swatch.
 function argbToCss(v) {
@@ -38,7 +50,8 @@ export default function TenantDetail() {
   const [planKey, setPlanKey] = useState('');
   const [status, setStatus] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
-  const [secretEdits, setSecretEdits] = useState({}); // key -> new plaintext value to save
+  const [secretEdits, setSecretEdits] = useState({}); // live edit buffer, pre-filled with real values
+  const [origSecrets, setOrigSecrets] = useState({}); // loaded values, to detect what changed
   const [delText, setDelText] = useState(''); // permanent-delete confirm (must be before any early return)
 
   const load = useCallback(() => {
@@ -47,6 +60,16 @@ export default function TenantDetail() {
     Platform.listBuilds(slug).then(({ data }) => setBuilds(data.data)).catch(() => {});
   }, [slug]);
   useEffect(load, [load]);
+
+  // When the tenant loads, pre-fill the secret fields with their ACTUAL values
+  // (so the PO can read/copy/edit them) and remember the originals for diffing.
+  useEffect(() => {
+    if (!t) return;
+    const vals = {};
+    SECRET_KEYS.forEach((k) => { vals[k] = String(currentSecret(t, k) || ''); });
+    setSecretEdits(vals);
+    setOrigSecrets(vals);
+  }, [t]);
 
   if (!t) return null;
   const sub = t.subscription;
@@ -80,10 +103,17 @@ export default function TenantDetail() {
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
   const saveSecrets = async () => {
-    const patch = Object.fromEntries(Object.entries(secretEdits).filter(([, v]) => v && v.trim()));
-    if (!Object.keys(patch).length) { toast('Enter at least one secret to update'); return; }
-    try { await Platform.updateSecrets(slug, patch); toast.success('Secrets updated'); setSecretEdits({}); load(); }
+    // Send only the fields whose value actually changed from what was loaded.
+    const patch = Object.fromEntries(
+      Object.entries(secretEdits).filter(([k, v]) => (v || '') !== (origSecrets[k] || '')),
+    );
+    if (!Object.keys(patch).length) { toast('No changes to save'); return; }
+    try { await Platform.updateSecrets(slug, patch); toast.success(`Updated ${Object.keys(patch).length} secret(s)`); load(); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
+  const copySecret = async (k) => {
+    try { await navigator.clipboard.writeText(secretEdits[k] || ''); toast.success(`${k} copied`); }
+    catch { toast.error('Copy failed'); }
   };
   // Disable build buttons for an app while a build is queued/running for it.
   const pendingApps = new Set(builds.filter((b) => b.status === 'queued' || b.status === 'running').map((b) => b.app));
@@ -199,36 +229,45 @@ export default function TenantDetail() {
           <Paper sx={{ p: 2.5 }}>
             <Typography variant="subtitle1" fontWeight={700}>Secrets (encrypted)</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Masked = already set in the DB. Type a new value to change one; leave blank to keep.
-              Agora, PayU &amp; VedicAstro also appear in the “Brand &amp; config” card above.
+              Actual values shown — copy or edit any field, then Save. Only changed
+              fields are updated. Agora &amp; PayU also live in the tenant DB (edit here or in the tenant admin).
             </Typography>
             <Divider sx={{ mb: 1.5 }} />
-            <Stack spacing={1.25}>
+            <Stack spacing={1.5}>
               {SECRET_KEYS.map((k) => {
-                // A key counts as "set" if it's in control-plane secrets OR the
-                // tenant-DB config (Agora lives in config.agora, not secrets).
-                const current = (t.secrets && t.secrets[k])
-                  || (k === 'agoraAppId' && t.config?.agora?.appId)
-                  || (k === 'agoraAppCertificate' && t.config?.agora?.appCertificate)
-                  || (k === 'payuKey' && t.config?.payments?.payu?.key)
-                  || (k === 'payuSalt' && t.config?.payments?.payu?.salt)
-                  || '';
+                const val = secretEdits[k] ?? '';
+                const changed = (val || '') !== (origSecrets[k] || '');
                 return (
                   <TextField
                     key={k}
                     size="small"
                     label={k}
-                    placeholder={current ? String(current) : 'not set'}
-                    helperText={current ? '✓ set' : 'not set'}
-                    FormHelperTextProps={{ sx: { color: current ? 'success.main' : 'text.disabled', m: 0 } }}
-                    value={secretEdits[k] || ''}
-                    onChange={(e) => setSecretEdits({ ...secretEdits, [k]: e.target.value })}
+                    placeholder="not set"
+                    value={val}
+                    onChange={(e) => setSecretEdits((s) => ({ ...s, [k]: e.target.value }))}
                     fullWidth
+                    color={changed ? 'warning' : undefined}
+                    focused={changed || undefined}
+                    helperText={changed ? 'changed — will be saved' : undefined}
+                    InputProps={{
+                      endAdornment: val ? (
+                        <InputAdornment position="end">
+                          <Tooltip title="Copy">
+                            <IconButton size="small" edge="end" onClick={() => copySecret(k)}>
+                              <ContentCopyIcon fontSize="inherit" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ) : undefined,
+                    }}
                   />
                 );
               })}
             </Stack>
-            <Button variant="outlined" sx={{ mt: 2 }} onClick={saveSecrets}>Save changed secrets</Button>
+            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+              <Button variant="contained" onClick={saveSecrets}>Save changes</Button>
+              <Button variant="text" onClick={() => setSecretEdits(origSecrets)}>Reset</Button>
+            </Stack>
           </Paper>
         </Grid>
 
