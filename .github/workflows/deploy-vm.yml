@@ -1,0 +1,71 @@
+name: Deploy console to VM
+
+# On push to main, build the PO (owner) console SPA (same-origin API via Caddy —
+# relative /platform, proxied to the backend) and sync it to /opt/rg-console on
+# the VM, where Caddy serves it at console.devifai.in. Replaces the old Vercel
+# deploy (the console CNAME to Vercel is retired; console.devifai.in → the VM).
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   VM_HOST    → VM public IP or <dashed-ip>.sslip.io (e.g. 34-93-133-182.sslip.io)
+#   VM_USER    → SSH user on the VM
+#   VM_SSH_KEY → private key whose public half is authorized on the VM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install + build (VM env)
+        env:
+          # Empty API base → SPA uses relative /platform, which Caddy proxies to
+          # the backend on the same origin (no CORS).
+          VITE_API_BASE: ""
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.VM_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Ship build to VM (/opt/rg-console)
+        run: |
+          # tar over SSH (rsync isn't installed on the VM). Pack dist locally,
+          # stream it to the VM, and atomically swap it into /opt/rg-console.
+          tar -czf /tmp/rg-console-dist.tgz -C dist .
+          scp -i ~/.ssh/id_deploy /tmp/rg-console-dist.tgz \
+            "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:/tmp/rg-console-dist.tgz"
+          ssh -i ~/.ssh/id_deploy "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" bash -s <<'EOF'
+          set -euo pipefail
+          sudo rm -rf /opt/rg-console-new && sudo mkdir -p /opt/rg-console-new
+          sudo tar -xzf /tmp/rg-console-dist.tgz -C /opt/rg-console-new
+          sudo mkdir -p /opt/rg-console
+          sudo cp -rT /opt/rg-console-new /opt/rg-console
+          sudo rm -rf /opt/rg-console-new /tmp/rg-console-dist.tgz
+          sudo test -f /opt/rg-console/index.html && echo "console deployed OK" || (echo "index.html missing"; exit 1)
+          EOF
+
+      - name: Smoke test (console served on VM)
+        run: |
+          ssh -i ~/.ssh/id_deploy "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}" bash -s <<'EOF'
+          # Verify Caddy serves the SPA for console.devifai.in over loopback TLS.
+          code=$(curl -sk -o /dev/null -w '%{http_code}' \
+            --resolve console.devifai.in:443:127.0.0.1 \
+            https://console.devifai.in/ || true)
+          echo "console SPA HTTP $code"
+          [ "$code" = "200" ] && exit 0 || (echo "console not served"; exit 1)
+          EOF
