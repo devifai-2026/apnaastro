@@ -12,6 +12,7 @@ import Builds from './pages/Builds';
 import Leads from './pages/Leads';
 import Billing from './pages/Billing';
 import Crons from './pages/Crons';
+import Prompts from './pages/Prompts';
 
 function RequireAuth({ children }) {
   const { owner, loading } = useAuth();
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/leads" element={<Leads />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/crons" element={<Crons />} />
+        <Route path="/prompts" element={<Prompts />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

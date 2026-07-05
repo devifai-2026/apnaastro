@@ -53,6 +53,9 @@ export const Platform = {
   reactivateTenant: (slug) => api.post(`/tenants/${slug}/reactivate`),
   deleteTenant: (slug, confirm) => api.post(`/tenants/${slug}/delete`, { confirm }),
 
+  listPrompts: (slug) => api.get(`/tenants/${slug}/prompts`),
+  updatePrompt: (slug, body) => api.put(`/tenants/${slug}/prompts`, body),
+
   listPlans: () => api.get('/plans'),
   upsertPlan: (body) => api.post('/plans', body),
   billing: () => api.get('/billing'),

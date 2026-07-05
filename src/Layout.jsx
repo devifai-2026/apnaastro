@@ -10,6 +10,7 @@ import AndroidIcon from '@mui/icons-material/Android';
 import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import PsychologyIcon from '@mui/icons-material/Psychology';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from './AuthContext';
 
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/plans', label: 'Plans', icon: <PaymentsIcon /> },
   { to: '/builds', label: 'Builds', icon: <AndroidIcon /> },
   { to: '/crons', label: 'Crons', icon: <ScheduleIcon /> },
+  { to: '/prompts', label: 'AI Prompts', icon: <PsychologyIcon /> },
 ];
 
 export default function Layout() {
