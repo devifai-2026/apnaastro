@@ -36,6 +36,10 @@ export const Platform = {
   cronSummary: (tenant) => api.get('/cron-summary', { params: tenant ? { tenant } : {} }),
   netFallback: (days) => api.get('/net-fallback', { params: days ? { days } : {} }),
   healthHistory: (hours) => api.get('/health-history', { params: hours ? { hours } : {} }),
+  growthAnalytics: (days) => api.get('/analytics/growth', { params: days ? { days } : {} }),
+  consultAnalytics: (days) => api.get('/analytics/consult', { params: days ? { days } : {} }),
+  healthScorecard: () => api.get('/analytics/scorecard'),
+  gaAnalytics: (params) => api.get('/analytics/ga', { params: params || {} }),
 
   listTenants: () => api.get('/tenants'),
   getTenant: (slug) => api.get(`/tenants/${slug}`),

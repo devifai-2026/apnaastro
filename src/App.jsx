@@ -14,6 +14,8 @@ import Billing from './pages/Billing';
 import Crons from './pages/Crons';
 import Prompts from './pages/Prompts';
 import NetworkHealth from './pages/NetworkHealth';
+import Analytics from './pages/Analytics';
+import FirebaseGA from './pages/FirebaseGA';
 
 function RequireAuth({ children }) {
   const { owner, loading } = useAuth();
@@ -39,6 +41,8 @@ export default function App() {
         <Route path="/crons" element={<Crons />} />
         <Route path="/prompts" element={<Prompts />} />
         <Route path="/network" element={<NetworkHealth />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/firebase-ga" element={<FirebaseGA />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

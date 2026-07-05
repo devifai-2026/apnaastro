@@ -12,6 +12,8 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
+import InsightsIcon from '@mui/icons-material/Insights';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from './AuthContext';
 
@@ -25,6 +27,8 @@ const NAV = [
   { to: '/builds', label: 'Builds', icon: <AndroidIcon /> },
   { to: '/crons', label: 'Crons', icon: <ScheduleIcon /> },
   { to: '/prompts', label: 'AI Prompts', icon: <PsychologyIcon /> },
+  { to: '/analytics', label: 'Analytics', icon: <BarChartIcon /> },
+  { to: '/firebase-ga', label: 'Firebase GA', icon: <InsightsIcon /> },
   { to: '/network', label: 'Network Health', icon: <MonitorHeartIcon /> },
 ];
 
