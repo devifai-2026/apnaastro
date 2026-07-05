@@ -13,6 +13,7 @@ import Leads from './pages/Leads';
 import Billing from './pages/Billing';
 import Crons from './pages/Crons';
 import Prompts from './pages/Prompts';
+import NetworkHealth from './pages/NetworkHealth';
 
 function RequireAuth({ children }) {
   const { owner, loading } = useAuth();
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/billing" element={<Billing />} />
         <Route path="/crons" element={<Crons />} />
         <Route path="/prompts" element={<Prompts />} />
+        <Route path="/network" element={<NetworkHealth />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -34,6 +34,7 @@ export const Platform = {
   apiMetrics: (hours) => api.get('/api-metrics', { params: hours ? { hours } : {} }),
   cronRuns: (params) => api.get('/cron-runs', { params: params || {} }),
   cronSummary: (tenant) => api.get('/cron-summary', { params: tenant ? { tenant } : {} }),
+  netFallback: (days) => api.get('/net-fallback', { params: days ? { days } : {} }),
 
   listTenants: () => api.get('/tenants'),
   getTenant: (slug) => api.get(`/tenants/${slug}`),

@@ -11,6 +11,7 @@ import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from './AuthContext';
 
@@ -24,6 +25,7 @@ const NAV = [
   { to: '/builds', label: 'Builds', icon: <AndroidIcon /> },
   { to: '/crons', label: 'Crons', icon: <ScheduleIcon /> },
   { to: '/prompts', label: 'AI Prompts', icon: <PsychologyIcon /> },
+  { to: '/network', label: 'Network Health', icon: <MonitorHeartIcon /> },
 ];
 
 export default function Layout() {
