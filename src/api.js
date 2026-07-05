@@ -31,6 +31,7 @@ export const Platform = {
   overview: () => api.get('/overview'),
   analytics: () => api.get('/analytics'),
   vmMetrics: (hours) => api.get('/vm-metrics', { params: hours ? { hours } : {} }),
+  apiMetrics: (hours) => api.get('/api-metrics', { params: hours ? { hours } : {} }),
   cronRuns: (params) => api.get('/cron-runs', { params: params || {} }),
   cronSummary: (tenant) => api.get('/cron-summary', { params: tenant ? { tenant } : {} }),
 

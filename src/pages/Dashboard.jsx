@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Grid, Card, CardContent, Typography, Box, Paper, CircularProgress } from '@mui/material';
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
-  AreaChart, Area,
+  AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import { Platform } from '../api';
 
@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState({});
   const [rep, setRep] = useState(null);
   const [vm, setVm] = useState(null);
+  const [apiM, setApiM] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,12 +36,25 @@ export default function Dashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
     Platform.vmMetrics(3).then(({ data }) => setVm(data.data)).catch(() => {});
+    Platform.apiMetrics(24).then(({ data }) => setApiM(data.data)).catch(() => {});
   }, []);
 
   const subData = rep ? Object.entries(rep.subscriptions || {}).map(([name, value]) => ({ name, value })) : [];
   const tenantBars = rep ? (rep.tenants || []).map((t) => ({
     name: t.slug, users: t.users, sessions: t.sessions, storageMb: t.storageMb,
   })) : [];
+
+  // API observability derived series.
+  const apiSeries = (apiM?.series || []).map((r) => ({
+    time: new Date(r.bucket?.value || r.bucket).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' }),
+    reqs: Number(r.reqs || 0), p95: Number(r.p95 || 0), avg: Number(r.avg_ms || 0),
+    errors: Number(r.errs_4xx || 0) + Number(r.errs_5xx || 0),
+  }));
+  const STATUS_LABEL = { 2: '2xx OK', 3: '3xx', 4: '4xx client', 5: '5xx server' };
+  const STATUS_COLOR = { 2: '#2e9e6b', 3: '#26c6da', 4: '#ffb300', 5: '#e0483a' };
+  const statusPie = (apiM?.statusRows || []).map((r) => ({ name: STATUS_LABEL[r.klass] || `${r.klass}xx`, value: Number(r.n || 0), klass: r.klass }));
+  const totalReqs = statusPie.reduce((a, r) => a + r.value, 0);
+  const errReqs = statusPie.filter((r) => r.klass >= 4).reduce((a, r) => a + r.value, 0);
 
   return (
     <Box>
@@ -187,6 +201,75 @@ export default function Dashboard() {
               Memory &amp; disk need the GCP Ops Agent on the VM — install it to see those charts. CPU &amp; network are shown from the built-in agent.
             </Typography>
           )}
+        </>
+      )}
+
+      {/* ── API health (from BigQuery api_logs) ── */}
+      {apiM && apiM.configured && (
+        <>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, mt: 4, mb: 1 }}>
+            <Typography variant="h5" fontWeight={700}>API health</Typography>
+            <Typography variant="body2" color="text.secondary">last {apiM.hours}h · {totalReqs.toLocaleString()} requests · {totalReqs ? ((errReqs / totalReqs) * 100).toFixed(1) : 0}% errors</Typography>
+          </Box>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>Response time (ms) — p95 &amp; avg</Typography>
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={apiSeries}>
+                    <XAxis dataKey="time" stroke="#888" fontSize={11} minTickGap={30} />
+                    <YAxis stroke="#888" fontSize={11} />
+                    <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }} />
+                    <Legend />
+                    <Line type="monotone" dataKey="p95" name="p95" stroke="#e0483a" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="avg" name="avg" stroke="#7c4dff" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>Status codes</Typography>
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={statusPie} dataKey="value" nameKey="name" outerRadius={85} label>
+                      {statusPie.map((s) => <Cell key={s.klass} fill={STATUS_COLOR[s.klass] || '#8d6e63'} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={7}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>Request volume &amp; errors</Typography>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={apiSeries}>
+                    <XAxis dataKey="time" stroke="#888" fontSize={11} minTickGap={30} />
+                    <YAxis stroke="#888" fontSize={11} />
+                    <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }} />
+                    <Legend />
+                    <Bar dataKey="reqs" name="requests" fill="#26c6da" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="errors" name="4xx/5xx" fill="#e0483a" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>Slowest endpoints (p95)</Typography>
+                <Box sx={{ maxHeight: 220, overflow: 'auto' }}>
+                  {(apiM.slow || []).map((r) => (
+                    <Box key={r.path} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.6, borderBottom: '1px solid', borderColor: 'divider', gap: 1 }}>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.path}</Typography>
+                      <Typography variant="caption" sx={{ flexShrink: 0, color: Number(r.p95) > 1000 ? 'error.main' : 'text.secondary' }}>{r.p95}ms · {r.n}×</Typography>
+                    </Box>
+                  ))}
+                  {!(apiM.slow || []).length && <Typography variant="caption" color="text.secondary">No data yet.</Typography>}
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
         </>
       )}
     </Box>
