@@ -64,6 +64,8 @@ export const Platform = {
   listBuilds: (slug) => api.get('/builds', { params: slug ? { slug } : {} }),
   requestBuild: (slug, body) => api.post(`/tenants/${slug}/builds`, body),
   buildAll: (body) => api.post('/builds/all', body),
+  getKeystore: () => api.get('/keystore'),
+  keystoreDownloadUrl: () => `${PLATFORM_BASE}/keystore/download`,
   deleteBuild: (id) => api.delete(`/builds/${id}`),
   clearBuilds: (slug) => api.delete('/builds/clear', { params: slug ? { slug } : {} }),
 };

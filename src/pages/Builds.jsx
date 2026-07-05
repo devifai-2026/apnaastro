@@ -4,6 +4,8 @@ import {
   Stack, MenuItem, TextField, Divider,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import DownloadIcon from '@mui/icons-material/Download';
+import KeyIcon from '@mui/icons-material/VpnKey';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
 
@@ -14,6 +16,8 @@ export default function Builds() {
   const [tenants, setTenants] = useState([]);
   const [sel, setSel] = useState({ slug: '', app: 'user', artifact: 'aab' });
   const [busy, setBusy] = useState(false);
+  const [keystore, setKeystore] = useState(null);
+  const [showPass, setShowPass] = useState(false);
 
   const load = () => {
     Platform.listBuilds().then(({ data }) => setBuilds(Array.isArray(data?.data) ? data.data : [])).catch(() => setBuilds([]));
@@ -25,7 +29,21 @@ export default function Builds() {
       setTenants(ts);
       if (ts[0]) setSel((s) => ({ ...s, slug: s.slug || ts[0].slug }));
     }).catch(() => {});
+    Platform.getKeystore().then(({ data }) => setKeystore(data.data)).catch(() => {});
   }, []);
+
+  const downloadKeystore = () => {
+    // Auth header needed → fetch as blob then save (can't use a plain <a href>).
+    fetch(Platform.keystoreDownloadUrl(), { headers: { Authorization: `Bearer ${localStorage.getItem('ownerToken')}` } })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = keystore?.filename || 'release.jks'; a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => toast.error('Download failed'));
+  };
 
   const buildOne = async () => {
     if (!sel.slug) { toast.error('Pick a tenant'); return; }
@@ -54,6 +72,40 @@ export default function Builds() {
         <Button startIcon={<RefreshIcon />} onClick={load}>Refresh</Button>
         <Button color="warning" onClick={clearPending}>Clear pending</Button>
       </Box>
+
+      {/* Platform signing keystore — the single release key all tenant apps are
+          signed with. Downloadable so it's never lost (losing it = no Play updates). */}
+      <Paper sx={{ p: 2.5, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <KeyIcon fontSize="small" color="primary" />
+          <Typography variant="subtitle1" fontWeight={700} sx={{ flexGrow: 1 }}>Release signing keystore</Typography>
+          {keystore && <Button size="small" startIcon={<DownloadIcon />} variant="outlined" onClick={downloadKeystore}>Download .jks</Button>}
+        </Box>
+        <Divider sx={{ mb: 1.5 }} />
+        {keystore ? (
+          <Stack spacing={0.75}>
+            <Typography variant="body2"><b>Status:</b> all release builds are signed with this platform keystore (Play-ready).</Typography>
+            <Typography variant="body2" color="text.secondary"><b>Alias:</b> {keystore.alias} · <b>File:</b> {keystore.filename}</Typography>
+            {keystore.sha256 && <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}><b>SHA-256:</b> {keystore.sha256}</Typography>}
+            {keystore.validUntil && <Typography variant="caption" color="text.secondary"><b>Valid until:</b> {new Date(keystore.validUntil).toLocaleDateString()}</Typography>}
+            <Box sx={{ mt: 0.5 }}>
+              <Button size="small" onClick={() => setShowPass((v) => !v)}>{showPass ? 'Hide' : 'Show'} passwords</Button>
+              {showPass && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                  store: <code>{keystore.storePassword}</code> · key: <code>{keystore.keyPassword}</code>
+                </Typography>
+              )}
+            </Box>
+            <Typography variant="caption" color="warning.main" sx={{ mt: 0.5 }}>
+              ⚠ Keep a backup. If this keystore is lost you cannot publish updates to any already-published app.
+            </Typography>
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No platform keystore stored yet — release builds fall back to <b>debug signing</b> (installable, but NOT Play-uploadable).
+          </Typography>
+        )}
+      </Paper>
 
       {/* Build console: pick a tenant + app + artifact, or build all. */}
       <Paper sx={{ p: 2.5, mb: 2 }}>
