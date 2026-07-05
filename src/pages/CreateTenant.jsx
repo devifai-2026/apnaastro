@@ -7,6 +7,19 @@ import toast from 'react-hot-toast';
 import { Platform } from '../api';
 import ImageUpload from '../components/ImageUpload';
 
+// Module-scope so its identity is stable across renders — a component defined
+// INSIDE CreateTenant would remount its children on every keystroke, stealing
+// focus from the field being typed into.
+function Section({ title, children }) {
+  return (
+    <Paper sx={{ p: 2.5, mb: 2 }}>
+      <Typography variant="subtitle1" fontWeight={700} gutterBottom>{title}</Typography>
+      <Divider sx={{ mb: 2 }} />
+      {children}
+    </Paper>
+  );
+}
+
 // The single "create tenant" form: identity + branding (seeded into the tenant's
 // AppConfig, so both apps get the tenant's theme/logo/splash on first launch) +
 // per-tenant secrets (Mongo URL, Agora, PayU, WABridge). Everything the owner
@@ -32,7 +45,10 @@ export default function CreateTenant() {
     waBridgeAppKey: '', waBridgeAuthKey: '', waBridgeDeviceId: '', waBridgeOtpTemplateId: '',
     llmApiKey: '',
   });
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Updater form so rapid keystrokes never use stale state.
+  const set = (k) => (e) => { const v = e.target.value; setF((s) => ({ ...s, [k]: v })); };
+  // Digits-only (phone): strip non-numeric, cap at 10.
+  const setDigits = (k, max = 10) => (e) => { const v = e.target.value.replace(/\D/g, '').slice(0, max); setF((s) => ({ ...s, [k]: v })); };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -79,14 +95,6 @@ export default function CreateTenant() {
     }
   };
 
-  const Section = ({ title, children }) => (
-    <Paper sx={{ p: 2.5, mb: 2 }}>
-      <Typography variant="subtitle1" fontWeight={700} gutterBottom>{title}</Typography>
-      <Divider sx={{ mb: 2 }} />
-      {children}
-    </Paper>
-  );
-
   return (
     <Box component="form" onSubmit={submit} sx={{ maxWidth: 820 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom>Create Tenant</Typography>
@@ -95,7 +103,7 @@ export default function CreateTenant() {
         <Grid container spacing={2}>
           <Grid item xs={6}><TextField fullWidth required label="Slug (subdomain)" value={f.slug} onChange={set('slug')} helperText="a-z, 0-9, hyphen; 3–40 chars" /></Grid>
           <Grid item xs={6}><TextField fullWidth required label="Display name" value={f.displayName} onChange={set('displayName')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Admin phone" value={f.adminPhone} onChange={set('adminPhone')} placeholder="10-digit" helperText="First admin login for <slug>.admin.devifai.in (OTP)" /></Grid>
+          <Grid item xs={6}><TextField fullWidth label="Admin phone" value={f.adminPhone} onChange={setDigits('adminPhone')} placeholder="10-digit" inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 10 }} helperText="Digits only. First admin login for <slug>.admin.devifai.in (OTP)" /></Grid>
         </Grid>
       </Section>
 

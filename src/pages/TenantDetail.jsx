@@ -135,7 +135,7 @@ export default function TenantDetail() {
             : ' None set yet.'}
         </Typography>
         <Stack direction="row" spacing={1}>
-          <TextField size="small" label="Admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder={t.adminPhone || '10-digit'} sx={{ minWidth: 200 }} />
+          <TextField size="small" label="Admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder={t.adminPhone || '10-digit'} inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 10 }} sx={{ minWidth: 200 }} />
           <Button variant="outlined" onClick={saveAdminPhone}>Set / Change</Button>
         </Stack>
       </Paper>
