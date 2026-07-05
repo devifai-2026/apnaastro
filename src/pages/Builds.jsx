@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DownloadIcon from '@mui/icons-material/Download';
+import CopyIcon from '@mui/icons-material/ContentCopy';
 import KeyIcon from '@mui/icons-material/VpnKey';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
@@ -43,6 +44,11 @@ export default function Builds() {
         URL.revokeObjectURL(url);
       })
       .catch(() => toast.error('Download failed'));
+  };
+
+  const copyUrl = async (url) => {
+    try { await navigator.clipboard.writeText(url); toast.success('Download URL copied'); }
+    catch { toast.error('Copy failed'); }
   };
 
   const buildOne = async () => {
@@ -145,7 +151,14 @@ export default function Builds() {
                 <TableCell>{b.versionName ? `${b.versionName} (${b.versionCode})` : '—'}</TableCell>
                 <TableCell><Chip size="small" color={COLOR[b.status] || 'default'} label={b.status} /></TableCell>
                 <TableCell>{new Date(b.createdAt).toLocaleString()}</TableCell>
-                <TableCell>{b.artifactUrl ? <a href={b.artifactUrl} target="_blank" rel="noreferrer">Download</a> : (b.status === 'failed' ? '—' : 'building…')}</TableCell>
+                <TableCell>
+                  {b.artifactUrl ? (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <a href={b.artifactUrl} target="_blank" rel="noreferrer">Download</a>
+                      <Button size="small" startIcon={<CopyIcon fontSize="inherit" />} onClick={() => copyUrl(b.artifactUrl)} sx={{ minWidth: 0 }}>Copy URL</Button>
+                    </Stack>
+                  ) : (b.status === 'failed' ? '—' : 'building…')}
+                </TableCell>
                 <TableCell><Button size="small" color="error" onClick={() => del(b._id)}>Delete</Button></TableCell>
               </TableRow>
             ))}

@@ -314,7 +314,12 @@ export default function TenantDetail() {
                     </TableCell>
                     <TableCell>
                       {bd.artifactUrl
-                        ? <a href={bd.artifactUrl} target="_blank" rel="noreferrer">Download {(bd.artifact || '').toUpperCase()}</a>
+                        ? (
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <a href={bd.artifactUrl} target="_blank" rel="noreferrer">Download {(bd.artifact || '').toUpperCase()}</a>
+                            <Button size="small" sx={{ minWidth: 0 }} onClick={async () => { try { await navigator.clipboard.writeText(bd.artifactUrl); toast.success('Download URL copied'); } catch { toast.error('Copy failed'); } }}>Copy URL</Button>
+                          </Stack>
+                        )
                         : (bd.status === 'failed' ? '—' : 'building…')}
                     </TableCell>
                     <TableCell><Button size="small" color="error" onClick={() => deleteBuild(bd._id)}>Delete</Button></TableCell>
