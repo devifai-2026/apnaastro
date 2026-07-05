@@ -5,8 +5,17 @@ import {
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid,
+  AreaChart, Area,
 } from 'recharts';
 import { Platform, PLATFORM_BASE } from '../api';
+
+// Format a metric time-series [{t,v}] into recharts rows with a short time label.
+function toSeries(arr) {
+  return (arr || []).map((p) => ({
+    time: new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    v: p.v,
+  }));
+}
 
 // Health is derived from /healthz on the platform origin. PLATFORM_BASE ends in
 // /platform; strip it to hit the root health probe.
@@ -14,8 +23,7 @@ const HEALTH_URL = `${PLATFORM_BASE.replace(/\/platform$/, '')}/healthz`;
 const POLL_MS = 5000;         // live health poll cadence
 const MAX_POINTS = 120;       // ~10 min of history at 5s
 
-const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-const fmtDay = (s) => { const [y, m, d] = s.split('-'); return `${d}/${m}`; };
+const fmtDay = (s) => { const [, m, d] = s.split('-'); return `${d}/${m}`; };
 
 export default function NetworkHealth() {
   // ── Live backend health (rolling up/down timeline) ──
@@ -47,6 +55,16 @@ export default function NetworkHealth() {
     ping();
     timer.current = setInterval(ping, POLL_MS);
     return () => { cancelled = true; clearInterval(timer.current); };
+  }, []);
+
+  // ── VM CPU utilization (from Cloud Monitoring, last 3h) ──
+  const [vm, setVm] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => Platform.vmMetrics(3).then(({ data }) => { if (!cancelled) setVm(data.data); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 60000); // refresh CPU each minute
+    return () => { cancelled = true; clearInterval(iv); };
   }, []);
 
   // ── Network-fallback impact (how many users hit the DNS issue) ──
@@ -111,20 +129,34 @@ export default function NetworkHealth() {
         </Grid>
       </Grid>
 
-      {/* ── Live up/down strip ── */}
+      {/* ── CPU utilization (last 3h, from Cloud Monitoring) ── */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
-          <Typography variant="subtitle2" fontWeight={700} mb={1}>Live up/down (last ~10 min)</Typography>
-          <Box display="flex" gap="2px" sx={{ height: 34, alignItems: 'stretch', overflow: 'hidden' }}>
-            {history.length === 0 && <Typography variant="caption" color="text.secondary">Collecting…</Typography>}
-            {history.map((p, i) => (
-              <Box key={i} title={`${fmtTime(p.at)} — ${p.up ? `Ready (${p.ms}ms)` : 'Down'}`}
-                sx={{ flex: 1, minWidth: 3, borderRadius: 0.5, bgcolor: p.up ? '#1C9963' : '#C0392B', opacity: 0.9 }} />
-            ))}
-          </Box>
-          <Typography variant="caption" color="text.secondary" mt={0.5} display="block">
-            Each bar = one health check. Green = Ready, red = Down. Hover for the timestamp.
-          </Typography>
+          <Typography variant="subtitle2" fontWeight={700} mb={1}>CPU utilization (%)</Typography>
+          {vm && vm.present?.cpu ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={toSeries(vm.cpu)}>
+                <defs>
+                  <linearGradient id="g-cpu" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#7c4dff" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#7c4dff" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="time" stroke="#888" fontSize={11} minTickGap={28} />
+                <YAxis stroke="#888" fontSize={11} />
+                <Tooltip contentStyle={{ background: '#171a2b', border: 'none' }} />
+                <Area type="monotone" dataKey="v" stroke="#7c4dff" strokeWidth={2} fill="url(#g-cpu)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <Box sx={{ height: 220, display: 'grid', placeItems: 'center' }}>
+              {vm ? <Typography variant="caption" color="text.secondary">CPU metrics unavailable</Typography> : <CircularProgress size={24} />}
+            </Box>
+          )}
+          {vm?.latest?.cpu != null && (
+            <Typography variant="caption" color="text.secondary">Now: {vm.latest.cpu}% · last 3h</Typography>
+          )}
         </CardContent>
       </Card>
 
