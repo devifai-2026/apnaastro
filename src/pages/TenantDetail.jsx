@@ -159,14 +159,16 @@ export default function TenantDetail() {
         </Stack>
         <Divider sx={{ my: 2 }} />
         <Typography variant="body2" color="text.secondary" gutterBottom>
-          Admin login phone — this number can log into the admin console via OTP.
-          {t.adminPhone
-            ? <> Currently: <b>{t.adminPhone}</b>{t.adminPhones && t.adminPhones.length > 1 ? ` (+${t.adminPhones.length - 1} more)` : ''}.</>
-            : ' None set yet.'}
+          Admin login phones — these numbers (all super-admins in the tenant DB) can log into the admin console via OTP.
         </Typography>
+        {t.adminPhones && t.adminPhones.length > 0 ? (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+            {t.adminPhones.map((p) => <Chip key={p} label={p} size="small" color={p === t.adminPhone ? 'primary' : 'default'} variant={p === t.adminPhone ? 'filled' : 'outlined'} />)}
+          </Stack>
+        ) : <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>None set yet.</Typography>}
         <Stack direction="row" spacing={1}>
-          <TextField size="small" label="Admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder={t.adminPhone || '10-digit'} inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 10 }} sx={{ minWidth: 200 }} />
-          <Button variant="outlined" onClick={saveAdminPhone}>Set / Change</Button>
+          <TextField size="small" label="Add / set admin phone" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit" inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 10 }} sx={{ minWidth: 200 }} />
+          <Button variant="outlined" onClick={saveAdminPhone}>Add admin</Button>
         </Stack>
       </Paper>
 
