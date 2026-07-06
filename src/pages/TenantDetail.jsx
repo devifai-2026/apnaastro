@@ -12,16 +12,18 @@ import { Platform } from '../api';
 const SECRET_KEYS = [
   'dbUri', 'agoraAppId', 'agoraAppCertificate', 'payuKey', 'payuSalt',
   'waBridgeAppKey', 'waBridgeAuthKey', 'waBridgeDeviceId', 'waBridgeOtpTemplateId', 'llmApiKey',
+  'vedicAstroApiKey',
 ];
 
 // The current stored value for a secret key. Control-plane secrets live in
-// t.secrets; Agora/PayU are seeded into the tenant-DB config, so read those too.
+// t.secrets; Agora/PayU/VedicAstro are seeded into the tenant-DB config, so read those too.
 function currentSecret(t, k) {
   return (t.secrets && t.secrets[k])
     || (k === 'agoraAppId' && t.config?.agora?.appId)
     || (k === 'agoraAppCertificate' && t.config?.agora?.appCertificate)
     || (k === 'payuKey' && t.config?.payments?.payu?.key)
     || (k === 'payuSalt' && t.config?.payments?.payu?.salt)
+    || (k === 'vedicAstroApiKey' && t.config?.vedicAstro)
     || '';
 }
 
