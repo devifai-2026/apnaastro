@@ -7,6 +7,12 @@ import toast from 'react-hot-toast';
 import { Platform } from '../api';
 import ImageUpload from '../components/ImageUpload';
 
+// Origin gateways will POST callbacks to. Falls back to the API base the console
+// itself talks to; in dev (Vite proxy, no VITE_API_BASE) that is the page origin,
+// which is only a display hint — the backend is the source of truth for the real
+// URL (see payments.webhookUrl in the tenant config summary).
+const WEBHOOK_ORIGIN = (import.meta.env.VITE_API_BASE || 'https://api.devifai.in').replace(/\/+$/, '');
+
 // Module-scope so its identity is stable across renders — a component defined
 // INSIDE CreateTenant would remount its children on every keystroke, stealing
 // focus from the field being typed into.
@@ -35,10 +41,12 @@ export default function CreateTenant() {
     // Voice/video (Agora) — seeded into the tenant DB's AgoraConfig.
     agoraAppId: '', agoraAppCertificate: '',
     // Payments: all 3 gateways + which is active (tenant DB PaymentGatewayConfig).
+    // webhookSecret is separate from the API secret — it's the value the gateway
+    // dashboard shows when you register the callback URL.
     activeGateway: 'payu',
-    payuKey: '', payuSalt: '',
-    razorpayKeyId: '', razorpayKeySecret: '',
-    cashfreeAppId: '', cashfreeSecretKey: '',
+    payuKey: '', payuSalt: '', payuWebhookSecret: '',
+    razorpayKeyId: '', razorpayKeySecret: '', razorpayWebhookSecret: '',
+    cashfreeAppId: '', cashfreeSecretKey: '', cashfreeWebhookSecret: '',
     // Astrology data provider.
     vedicAstroKey: '',
     // WhatsApp OTP + LLM (control-plane secrets).
@@ -78,9 +86,9 @@ export default function CreateTenant() {
         config: {
           payments: {
             active: f.activeGateway,
-            payu: (f.payuKey || f.payuSalt) ? { key: f.payuKey, salt: f.payuSalt, enabled: true } : undefined,
-            razorpay: (f.razorpayKeyId || f.razorpayKeySecret) ? { keyId: f.razorpayKeyId, keySecret: f.razorpayKeySecret, enabled: true } : undefined,
-            cashfree: (f.cashfreeAppId || f.cashfreeSecretKey) ? { appId: f.cashfreeAppId, secretKey: f.cashfreeSecretKey, enabled: true } : undefined,
+            payu: (f.payuKey || f.payuSalt) ? { key: f.payuKey, salt: f.payuSalt, webhookSecret: f.payuWebhookSecret || '', enabled: true } : undefined,
+            razorpay: (f.razorpayKeyId || f.razorpayKeySecret) ? { keyId: f.razorpayKeyId, keySecret: f.razorpayKeySecret, webhookSecret: f.razorpayWebhookSecret || '', enabled: true } : undefined,
+            cashfree: (f.cashfreeAppId || f.cashfreeSecretKey) ? { appId: f.cashfreeAppId, secretKey: f.cashfreeSecretKey, webhookSecret: f.cashfreeWebhookSecret || '', enabled: true } : undefined,
           },
           vedicAstroKey: f.vedicAstroKey || undefined,
           agora: (f.agoraAppId || f.agoraAppCertificate) ? { appId: f.agoraAppId, appCertificate: f.agoraAppCertificate } : undefined,
@@ -142,13 +150,32 @@ export default function CreateTenant() {
               <MenuItem value="cashfree">Cashfree</MenuItem>
             </TextField>
           </Grid>
-          <Grid item xs={6}><TextField fullWidth label="PayU Merchant Key" value={f.payuKey} onChange={set('payuKey')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="PayU Salt" value={f.payuSalt} onChange={set('payuSalt')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Razorpay Key ID" value={f.razorpayKeyId} onChange={set('razorpayKeyId')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Razorpay Key Secret" value={f.razorpayKeySecret} onChange={set('razorpayKeySecret')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Cashfree App ID" value={f.cashfreeAppId} onChange={set('cashfreeAppId')} /></Grid>
-          <Grid item xs={6}><TextField fullWidth label="Cashfree Secret Key" value={f.cashfreeSecretKey} onChange={set('cashfreeSecretKey')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="PayU Merchant Key" value={f.payuKey} onChange={set('payuKey')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="PayU Salt" value={f.payuSalt} onChange={set('payuSalt')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="PayU Webhook Secret" value={f.payuWebhookSecret} onChange={set('payuWebhookSecret')} helperText="Optional — from the dashboard" /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="Razorpay Key ID" value={f.razorpayKeyId} onChange={set('razorpayKeyId')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="Razorpay Key Secret" value={f.razorpayKeySecret} onChange={set('razorpayKeySecret')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="Razorpay Webhook Secret" value={f.razorpayWebhookSecret} onChange={set('razorpayWebhookSecret')} helperText="Needed for s2s webhooks" /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="Cashfree App ID" value={f.cashfreeAppId} onChange={set('cashfreeAppId')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="Cashfree Secret Key" value={f.cashfreeSecretKey} onChange={set('cashfreeSecretKey')} /></Grid>
+          <Grid item xs={4}><TextField fullWidth label="Cashfree Webhook Secret" value={f.cashfreeWebhookSecret} onChange={set('cashfreeWebhookSecret')} helperText="Optional" /></Grid>
         </Grid>
+        {/* The callback URL can only be shown once the slug is known, since it is
+            path-scoped per tenant. Registering it in each gateway dashboard is a
+            manual step — PayU exposes no API for it. */}
+        <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
+          <Typography variant="caption" color="text.secondary" display="block">
+            Webhook / callback URL to register in the gateway dashboard
+          </Typography>
+          <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', mt: 0.5 }}>
+            {f.slug
+              ? `${WEBHOOK_ORIGIN}/api/payments/t/${f.slug}/callback`
+              : 'Enter a slug above to see this tenant’s callback URL'}
+          </Typography>
+          <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5 }}>
+            Payments will not complete until this URL is registered with the gateway.
+          </Typography>
+        </Box>
       </Section>
 
       <Section title="Astrology data + voice/video">
