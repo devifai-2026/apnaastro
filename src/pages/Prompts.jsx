@@ -33,7 +33,7 @@ export default function Prompts() {
       .catch(() => toast.error('Failed to load prompts'))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [slug]);
+  useEffect(() => { load(); }, [slug]);
 
   const save = async (key) => {
     const system = edits[key];

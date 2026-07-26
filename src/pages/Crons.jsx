@@ -36,7 +36,7 @@ export default function Crons() {
     if (cron) params.cron = cron;
     Platform.cronRuns(params).then(({ data }) => setRuns(Array.isArray(data?.data) ? data.data : [])).catch(() => setRuns([]));
   };
-  useEffect(load, [tenant, cron]);
+  useEffect(() => { load(); }, [tenant, cron]);
 
   return (
     <Box>

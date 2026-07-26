@@ -61,7 +61,7 @@ export default function TenantDetail() {
     Platform.listPlans().then(({ data }) => setPlans(data.data)).catch(() => {});
     Platform.listBuilds(slug).then(({ data }) => setBuilds(data.data)).catch(() => {});
   }, [slug]);
-  useEffect(load, [load]);
+  useEffect(() => { load(); }, [load]);
 
   // When the tenant loads, pre-fill the secret fields with their ACTUAL values
   // (so the PO can read/copy/edit them) and remember the originals for diffing.

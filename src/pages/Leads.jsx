@@ -22,7 +22,7 @@ export default function Leads() {
       .catch(() => setLeads([]))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [filter]);
+  useEffect(() => { load(); }, [filter]);
 
   const setStatus = async (id, status) => {
     try { await Platform.updateLead(id, { status }); load(); }

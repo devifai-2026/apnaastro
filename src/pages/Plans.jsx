@@ -12,7 +12,8 @@ export default function Plans() {
   const [f, setF] = useState({ key: '', name: '', price: 0, interval: 'month', trialDays: 0 });
 
   const load = useCallback(() => Platform.listPlans().then(({ data }) => setPlans(data.data)).catch(() => {}), []);
-  useEffect(load, [load]);
+  // Wrapped: `load` returns a Promise and React would misread it as a cleanup fn.
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     try {

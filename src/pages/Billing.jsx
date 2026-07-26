@@ -29,7 +29,10 @@ export default function Billing() {
   const [payForm, setPayForm] = useState({ amount: '5999', method: 'manual', reference: '' });
 
   const load = () => Platform.billing().then(({ data }) => setData(data.data)).catch(() => setData(null));
-  useEffect(load, []);
+  // `load` returns a Promise, so it must NOT be passed to useEffect directly —
+  // React would treat the Promise as the cleanup function and crash on unmount
+  // with "destroy is not a function". Call it inside and return nothing.
+  useEffect(() => { load(); }, []);
 
   const rows = data?.rows || [];
   const totals = data?.totals || {};
