@@ -8,6 +8,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
 import PurgeTenantDialog from '../components/PurgeTenantDialog';
+import ImageUpload from '../components/ImageUpload';
 
 // Control-plane secrets the PO can set/rotate (matches backend updateSecrets allow-list).
 const SECRET_KEYS = [
@@ -59,6 +60,12 @@ export default function TenantDetail() {
   const [status, setStatus] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
   const [secretEdits, setSecretEdits] = useState({}); // live edit buffer, pre-filled with real values
+  // Control-plane branding images. Separate from `t.config` (which mirrors the
+  // TENANT DB) because the Android build reads these from the control plane.
+  const [brand, setBrand] = useState({ appIconUrl: '', logoUrl: '' });
+  const [savedBrand, setSavedBrand] = useState({ appIconUrl: '', logoUrl: '' });
+  const [savingBrand, setSavingBrand] = useState(false);
+  const brandDirty = brand.appIconUrl !== savedBrand.appIconUrl || brand.logoUrl !== savedBrand.logoUrl;
   const [origSecrets, setOrigSecrets] = useState({}); // loaded values, to detect what changed
   const [purgeOpen, setPurgeOpen] = useState(false); // delete-tenant confirm dialog
 
@@ -77,10 +84,40 @@ export default function TenantDetail() {
     SECRET_KEYS.forEach((k) => { vals[k] = String(currentSecret(t, k) || ''); });
     setSecretEdits(vals);
     setOrigSecrets(vals);
+    // Hydrate the branding editor from the control-plane record (the source the
+    // Android build actually reads).
+    const b = {
+      appIconUrl: (t.branding && t.branding.appIconUrl) || '',
+      logoUrl: (t.branding && t.branding.logoUrl) || '',
+    };
+    setBrand(b);
+    setSavedBrand(b);
   }, [t]);
 
   if (!t) return null;
   const sub = t.subscription;
+
+  // PATCH /tenants/:slug replaces `branding` WHOLESALE, so spread the existing
+  // object first — sending only the two image URLs would wipe displayName,
+  // tagline and the theme colours.
+  const saveBranding = async () => {
+    setSavingBrand(true);
+    try {
+      const next = {
+        ...(t.branding || {}),
+        appIconUrl: brand.appIconUrl || undefined,
+        logoUrl: brand.logoUrl || undefined,
+      };
+      await Platform.updateTenant(slug, { branding: next });
+      setSavedBrand({ appIconUrl: brand.appIconUrl, logoUrl: brand.logoUrl });
+      toast.success('Branding saved — rebuild to apply the icon');
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not save branding');
+    } finally {
+      setSavingBrand(false);
+    }
+  };
 
   const applyPlan = async () => {
     if (!planKey) return;
@@ -284,6 +321,50 @@ export default function TenantDetail() {
               <Button size="small" color="warning" onClick={clearBuilds}>Clear pending</Button>
             </Box>
             <Divider sx={{ mb: 1.5 }} />
+
+            {/* Launcher icon + logo, EDITABLE here.
+                The CI workflow stamps the home-screen icon from branding.appIconUrl
+                and skips that step when it is empty, keeping the checked-in default
+                — which is why a tenant created without an icon builds with the
+                generic one and there was previously no way to fix it: the create
+                form had the upload, but this page only ever displayed the logo
+                read-only. Set it here, then rebuild. */}
+            <Stack spacing={1.5} sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+                <ImageUpload
+                  label="App icon (1024×1024 PNG)"
+                  hint="Home-screen icon. Applied on the next build."
+                  kind="icon"
+                  slug={slug}
+                  value={brand.appIconUrl}
+                  onChange={(url) => setBrand((b) => ({ ...b, appIconUrl: url }))}
+                />
+                <ImageUpload
+                  label="App logo"
+                  hint="Shown inside the app (splash / headers)."
+                  kind="logo"
+                  slug={slug}
+                  value={brand.logoUrl}
+                  onChange={(url) => setBrand((b) => ({ ...b, logoUrl: url }))}
+                />
+              </Stack>
+              {brandDirty && (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button size="small" variant="contained" onClick={saveBranding} disabled={savingBrand}>
+                    {savingBrand ? 'Saving…' : 'Save branding'}
+                  </Button>
+                  <Typography variant="caption" color="warning.main">
+                    Unsaved — save before building, or the build uses the old icon.
+                  </Typography>
+                </Stack>
+              )}
+              {!brand.appIconUrl && (
+                <Typography variant="caption" color="text.secondary">
+                  No app icon set — builds will use the default launcher icon.
+                </Typography>
+              )}
+            </Stack>
+
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
               {/* Buttons for an app are disabled while a build for it is queued/running. */}
               <Button size="small" variant="contained" disabled={pendingApps.has('user')} onClick={() => build('user', 'aab')}>User · AAB (Play)</Button>
