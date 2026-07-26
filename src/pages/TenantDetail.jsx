@@ -14,6 +14,10 @@ const SECRET_KEYS = [
   'dbUri', 'agoraAppId', 'agoraAppCertificate', 'payuKey', 'payuSalt',
   'waBridgeAppKey', 'waBridgeAuthKey', 'waBridgeDeviceId', 'waBridgeOtpTemplateId', 'llmApiKey',
   'vedicAstroApiKey',
+  // Verifies that a Cashfree webhook genuinely came from Cashfree. Without it
+  // the callback still re-queries their API before crediting, so this is
+  // defence-in-depth rather than the only gate.
+  'cashfreeWebhookSecret',
 ];
 
 // The current stored value for a secret key. Control-plane secrets live in
@@ -25,6 +29,7 @@ function currentSecret(t, k) {
     || (k === 'payuKey' && t.config?.payments?.payu?.key)
     || (k === 'payuSalt' && t.config?.payments?.payu?.salt)
     || (k === 'vedicAstroApiKey' && t.config?.vedicAstro)
+    || (k === 'cashfreeWebhookSecret' && t.config?.payments?.cashfree?.webhookSecret)
     || '';
 }
 
