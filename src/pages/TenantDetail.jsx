@@ -7,6 +7,7 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import toast from 'react-hot-toast';
 import { Platform } from '../api';
+import PurgeTenantDialog from '../components/PurgeTenantDialog';
 
 // Control-plane secrets the PO can set/rotate (matches backend updateSecrets allow-list).
 const SECRET_KEYS = [
@@ -54,7 +55,7 @@ export default function TenantDetail() {
   const [adminPhone, setAdminPhone] = useState('');
   const [secretEdits, setSecretEdits] = useState({}); // live edit buffer, pre-filled with real values
   const [origSecrets, setOrigSecrets] = useState({}); // loaded values, to detect what changed
-  const [delText, setDelText] = useState(''); // permanent-delete confirm (must be before any early return)
+  const [purgeOpen, setPurgeOpen] = useState(false); // delete-tenant confirm dialog
 
   const load = useCallback(() => {
     Platform.getTenant(slug).then(({ data }) => setT(data.data)).catch(() => toast.error('Load failed'));
@@ -126,11 +127,6 @@ export default function TenantDetail() {
   };
   const reactivate = async () => {
     try { await Platform.reactivateTenant(slug); toast.success('Reactivated — logins work again'); load(); }
-    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
-  };
-  const permanentDelete = async () => {
-    if (delText !== slug) { toast.error(`Type "${slug}" exactly to confirm`); return; }
-    try { await Platform.deleteTenant(slug, delText); toast.success('Tenant permanently deleted'); nav('/tenants'); }
     catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
 
@@ -355,25 +351,32 @@ export default function TenantDetail() {
 
             <Divider sx={{ my: 1.5 }} />
 
-            {/* Permanent delete — irreversible, type-slug confirm */}
+            {/* Delete = hard purge. There is deliberately no soft-delete option:
+                a status-only delete keeps the row and leaves the slug taken, which
+                is never what an operator wants here. */}
             <Box>
               <Typography variant="body2" fontWeight={600} color="error">Delete permanently</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                Irreversible. Blocks all logins forever and the tenant can never be reactivated.
-                Type <b>{slug}</b> to confirm.
+                Drops the tenant database <code>{t.dbName}</code> and removes the record,
+                secrets, subscription and build history. Afterwards <b>{slug}</b> is free and
+                can be used for a new tenant. No backup — this cannot be undone.
               </Typography>
-              {t.status === 'deleted'
-                ? <Chip color="error" label="Permanently deleted" />
-                : (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <TextField size="small" placeholder={slug} value={delText} onChange={(e) => setDelText(e.target.value)} sx={{ maxWidth: 220 }} />
-                    <Button variant="contained" color="error" disabled={delText !== slug} onClick={permanentDelete}>Delete permanently</Button>
-                  </Stack>
-                )}
+              <Button variant="contained" color="error" onClick={() => setPurgeOpen(true)}>
+                Delete tenant permanently
+              </Button>
             </Box>
           </Paper>
         </Grid>
       </Grid>
+
+      {/* onDone navigates away rather than reloading — after a purge this tenant
+          no longer exists, so load() would 404. */}
+      <PurgeTenantDialog
+        tenant={t}
+        open={purgeOpen}
+        onClose={() => setPurgeOpen(false)}
+        onDone={() => nav('/tenants')}
+      />
     </Box>
   );
 }

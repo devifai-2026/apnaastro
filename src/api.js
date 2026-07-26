@@ -58,6 +58,11 @@ export const Platform = {
   suspendTenant: (slug) => api.post(`/tenants/${slug}/suspend`),
   reactivateTenant: (slug) => api.post(`/tenants/${slug}/reactivate`),
   deleteTenant: (slug, confirm) => api.post(`/tenants/${slug}/delete`, { confirm }),
+  // HARD PURGE — drops the tenant database and frees the slug for reuse.
+  // Irreversible; `confirm` must equal the slug. Longer timeout: dropping a
+  // database can outlast the default 30s.
+  purgeTenant: (slug, confirm, dropDatabase = true) =>
+    api.post(`/tenants/${slug}/purge`, { confirm, dropDatabase }, { timeout: 120000 }),
 
   listPrompts: (slug) => api.get(`/tenants/${slug}/prompts`),
   updatePrompt: (slug, body) => api.put(`/tenants/${slug}/prompts`, body),

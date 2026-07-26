@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, Table, TableHead, TableRow, TableCell, TableBody,
-  Chip, Paper,
+  Chip, Paper, IconButton, Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { Platform } from '../api';
+import PurgeTenantDialog from '../components/PurgeTenantDialog';
 
 const STATUS_COLOR = {
   trialing: 'info', active: 'success', past_due: 'warning', suspended: 'error', cancelled: 'default',
@@ -14,10 +16,12 @@ const STATUS_COLOR = {
 export default function Tenants() {
   const nav = useNavigate();
   const [tenants, setTenants] = useState([]);
+  const [purging, setPurging] = useState(null); // tenant row pending purge
 
-  useEffect(() => {
+  const load = () => {
     Platform.listTenants().then(({ data }) => setTenants(data.data)).catch(() => {});
-  }, []);
+  };
+  useEffect(() => { load(); }, []);
 
   return (
     <Box>
@@ -36,6 +40,7 @@ export default function Tenants() {
               <TableCell>Status</TableCell>
               <TableCell>Subscription</TableCell>
               <TableCell>DB</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -50,16 +55,35 @@ export default function Tenants() {
                     : '—'}
                 </TableCell>
                 <TableCell><code>{t.dbName}</code></TableCell>
+                <TableCell align="right">
+                  <Tooltip title="Delete everything — drops the DB and frees the slug">
+                    {/* stopPropagation: the row itself navigates on click. */}
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(e) => { e.stopPropagation(); setPurging(t); }}
+                    >
+                      <DeleteForeverIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
             ))}
             {!tenants.length && (
-              <TableRow><TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+              <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                 No tenants yet. Create your first one.
               </TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </Paper>
+
+      <PurgeTenantDialog
+        tenant={purging}
+        open={!!purging}
+        onClose={() => setPurging(null)}
+        onDone={load}
+      />
     </Box>
   );
 }
