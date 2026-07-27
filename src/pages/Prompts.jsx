@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Typography, Paper, TextField, MenuItem, Button, Stack, Chip, Divider, Accordion,
+  Box, Typography, Paper, TextField, MenuItem, Button, Stack, Chip, Tooltip, Divider, Accordion,
   AccordionSummary, AccordionDetails,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -73,6 +73,14 @@ export default function Prompts() {
               {p.isOverridden
                 ? <Chip size="small" color="warning" label="customised" />
                 : <Chip size="small" variant="outlined" label="default" />}
+              {/* A customised prompt is never overwritten by a deploy, which keeps
+                  your edits safe but also means an improved shipped version never
+                  arrives. Without this the drift is invisible. */}
+              {p.stale && (
+                <Tooltip title="A newer built-in version has shipped since this was customised. Reset to adopt it.">
+                  <Chip size="small" color="info" variant="outlined" label="update available" />
+                </Tooltip>
+              )}
               <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>{p.key}</Typography>
             </Box>
           </AccordionSummary>
