@@ -12,7 +12,12 @@ import ImageUpload from '../components/ImageUpload';
 
 // Control-plane secrets the PO can set/rotate (matches backend updateSecrets allow-list).
 const SECRET_KEYS = [
-  'dbUri', 'agoraAppId', 'agoraAppCertificate', 'payuKey', 'payuSalt',
+  'dbUri', 'agoraAppId', 'agoraAppCertificate',
+  // Agora's RESTful API key/secret — SEPARATE from the App ID + Certificate
+  // above. Cloud recording authenticates with these, so without them every
+  // call is stamped "mock" and shows as "Not recorded".
+  'agoraCustomerId', 'agoraCustomerSecret',
+  'payuKey', 'payuSalt',
   'waBridgeAppKey', 'waBridgeAuthKey', 'waBridgeDeviceId', 'waBridgeOtpTemplateId', 'llmApiKey',
   'vedicAstroApiKey',
   // Verifies that a Cashfree webhook genuinely came from Cashfree. Without it
@@ -27,6 +32,8 @@ function currentSecret(t, k) {
   return (t.secrets && t.secrets[k])
     || (k === 'agoraAppId' && t.config?.agora?.appId)
     || (k === 'agoraAppCertificate' && t.config?.agora?.appCertificate)
+    || (k === 'agoraCustomerId' && t.config?.agora?.restKey)
+    || (k === 'agoraCustomerSecret' && t.config?.agora?.restSecret)
     || (k === 'payuKey' && t.config?.payments?.payu?.key)
     || (k === 'payuSalt' && t.config?.payments?.payu?.salt)
     || (k === 'vedicAstroApiKey' && t.config?.vedicAstro)
